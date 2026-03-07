@@ -1,132 +1,138 @@
 # AI Bot Router
 
-Multi-module Java project for interacting with various AI services through different interfaces (Telegram, REST API, Web UI) with integration via Spring AI (OpenRouter, Ollama).
+[![Build Status](https://github.com/NGirchev/ai-bot/actions/workflows/maven.yml/badge.svg)](https://github.com/NGirchev/ai-bot/actions)
+[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk)](https://openjdk.org/)
+[![Spring Boot 3.3.3](https://img.shields.io/badge/Spring%20Boot-3.3.3-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot)
+[![License](https://img.shields.io/github/license/NGirchev/ai-bot)](https://github.com/NGirchev/ai-bot/blob/master/LICENSE)
+
+Multi-module Java project for interacting with various AI services through different interfaces (Telegram, REST API, Web UI), with integration via Spring AI (OpenRouter, Ollama).
+
+## Table of contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Tech stack](#tech-stack)
+- [Quick start](#quick-start)
+- [Build and run](#build-and-run)
+- [Server deployment](#server-deployment)
+- [Useful links](#useful-links)
+- [Testing](#testing)
+- [Monitoring and debugging](#monitoring-and-debugging)
+- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [Project structure](#project-structure)
+- [Additional commands](#additional-commands)
+- [License](#license)
+
+## Features
+
+- **Multiple interfaces**: Telegram bot, REST API, Web UI
+- **Spring AI integration**: OpenRouter, Ollama, chat memory, optional RAG
+- **Modular architecture**: enable only the modules you need
+- **Request prioritization**: bulkhead (ADMIN/VIP/REGULAR) and per-user concurrency
+- **Monitoring**: Prometheus, Grafana, Elasticsearch, Kibana
+
+## Requirements
+
+- **Java 21** (LTS)
+- **Maven 3.6+**
+- **Docker & Docker Compose** (for PostgreSQL, Prometheus, Grafana; optional Elasticsearch, Kibana)
 
 ## Tech stack
 
-- **Java 21** (LTS)
-- **Spring Boot 3.3.3**
+- **Java 21** (LTS), **Spring Boot 3.3.3**
 - **PostgreSQL 17.0** with Flyway migrations
-- **Docker & Docker Compose**
-- **Prometheus + Grafana** for monitoring
-- **Elasticsearch + Kibana** for logging
+- **Prometheus + Grafana** for metrics, **Elasticsearch + Kibana** for logging
 
 ## Quick start
+
+### Environment variables
+
+Create a `.env` file in the project root (do **not** commit it; add `.env` to `.gitignore`). Use [.env.example](.env.example) as a template:
+
+```bash
+cp .env.example .env
+# Edit .env and set TELEGRAM_USERNAME, TELEGRAM_TOKEN, OPENROUTER_KEY, POSTGRES_PASSWORD, etc.
+```
+
+For local run without Docker Compose you can also `export` variables in the shell.
 
 ### Local run (for development)
 
 1. **Start infrastructure:**
-```bash
-docker-compose up -d postgres prometheus grafana
-```
+   ```bash
+   docker-compose up -d postgres prometheus grafana
+   ```
 
 2. **Build the project:**
-```bash
-mvn clean install
-```
+   ```bash
+   mvn clean install
+   ```
 
 3. **Run the application:**
-```bash
-mvn spring-boot:run -pl aibot-app
-```
-
-4. **Set environment variables** (create `.env` or set in the system):
-```bash
-export TELEGRAM_USERNAME=your_bot_username
-export TELEGRAM_TOKEN=your_telegram_bot_token
-export OPENROUTER_KEY=your_openrouter_api_key
-export SERPER_KEY=your_serper_api_key
-```
+   ```bash
+   mvn spring-boot:run -pl aibot-app
+   ```
 
 ### Run with Docker Compose (recommended)
 
-1. **Build the project:**
-```bash
-mvn clean package -DskipTests
-```
+1. **Create `.env`** from [.env.example](.env.example) and set required values (see [Environment variables](#environment-variables) above).
 
-2. **Create `.env` file** in the project root:
-```bash
-TELEGRAM_USERNAME=your_bot_username
-TELEGRAM_TOKEN=your_telegram_bot_token
-OPENROUTER_KEY=your_openrouter_api_key
-SERPER_KEY=your_serper_api_key
-POSTGRES_PASSWORD=your_secure_password
-```
+2. **Build the project:**
+   ```bash
+   mvn clean package -DskipTests
+   ```
 
 3. **Start all services:**
-```bash
-docker-compose up -d
-```
-
-   **Or with image rebuild:**
-```bash
-docker-compose up -d --build
-```
+   ```bash
+   docker-compose up -d
+   ```
+   Or with image rebuild: `docker-compose up -d --build`
 
 4. **Check status:**
-```bash
-docker-compose ps
-docker-compose logs -f aibot-app
-```
+   ```bash
+   docker-compose ps
+   docker-compose logs -f aibot-app
+   ```
 
 ## Build and run
 
 ### Prerequisites
-```bash
-# Java 21
-java -version
 
-# Maven 3.11+
-mvn -version
-
-# Docker (for DB and monitoring)
-docker --version
-```
+- Java 21: `java -version`
+- Maven 3.6+: `mvn -version`
+- Docker (for DB and monitoring): `docker --version`
 
 ### Start infrastructure
-```bash
-# Start PostgreSQL, Prometheus, Grafana, Elasticsearch, Kibana
-docker-compose up -d
 
-# Check status
+```bash
+# PostgreSQL, Prometheus, Grafana, Elasticsearch, Kibana
+docker-compose up -d
 docker-compose ps
 ```
 
 ### Build project
+
 ```bash
-# Build all modules
 mvn clean install
-
-# Build without tests
-mvn clean install -DskipTests
-
-# Build a specific module
-mvn clean install -pl aibot-telegram
-
-# Build with dependencies
-mvn clean install -pl aibot-app -am
+mvn clean install -DskipTests              # without tests
+mvn clean install -pl aibot-telegram       # single module
+mvn clean install -pl aibot-app -am        # module and dependencies
 ```
 
 ### Run application
-```bash
-# From project root
-mvn spring-boot:run -pl aibot-app
 
-# Or via JAR
-java -jar aibot-app/target/aibot-app-1.0-SNAPSHOT.jar
+```bash
+mvn spring-boot:run -pl aibot-app
+# Or: java -jar aibot-app/target/aibot-app-1.0-SNAPSHOT.jar
 ```
 
 ### DB migrations
+
 ```bash
-# Apply migrations
 mvn flyway:migrate
-
-# Migration info
 mvn flyway:info
-
-# Clean DB (use with caution!)
-mvn flyway:clean
+mvn flyway:clean   # use with caution
 ```
 
 ## Server deployment
@@ -137,27 +143,32 @@ Detailed production deployment guide: **[DEPLOYMENT.md](DEPLOYMENT.md)**
 
 After starting the application:
 
-- **Swagger UI**: http://localhost:8080/swagger-ui/index.html
-- **Actuator Health**: http://localhost:8080/actuator/health
-- **Prometheus Metrics**: http://localhost:8080/actuator/prometheus
-- **Prometheus UI**: http://localhost:9090
-- **Grafana**: http://localhost:3000 (admin/admin123456)
-- **Kibana**: http://localhost:5601
+| Service        | URL |
+|----------------|-----|
+| Swagger UI     | http://localhost:8080/swagger-ui/index.html |
+| Actuator Health| http://localhost:8080/actuator/health |
+| Prometheus metrics | http://localhost:8080/actuator/prometheus |
+| Prometheus UI  | http://localhost:9090 |
+| Grafana        | http://localhost:3000 (admin/admin123456) |
+| Kibana         | http://localhost:5601 |
 
 ## Testing
 
 ### Run all tests
+
 ```bash
 mvn test
 ```
 
 ### Run tests for a specific module
+
 ```bash
 mvn test -pl aibot-common
 mvn test -pl aibot-telegram
 ```
 
 ### Run a specific test
+
 ```bash
 # Example from README
 mvn test -Dtest=repository.telegram.io.github.ngirchev.aibot.common.TelegramUserRepositoryTest -pl aibot-app
@@ -208,6 +219,7 @@ Logs are sent to Elasticsearch via Metricbeat.
 ## Troubleshooting
 
 ### Flyway migrations not applying
+
 ```bash
 # Check status
 mvn flyway:info
@@ -239,6 +251,7 @@ On Windows, Docker Desktop may return 400 over npipe and Testcontainers cannot c
    Or in one line: `$env:DOCKER_HOST = "tcp://localhost:2375"; .\mvnw.cmd verify -q`
 
 ### Module cannot see dependencies
+
 ```bash
 # Rebuild with dependencies
 mvn clean install -am
@@ -260,7 +273,7 @@ File -> Invalidate Caches / Restart
 
 ## Project structure
 
-```
+```text
 ai-bot/
 ├── aibot-common/        # Core module with shared logic
 ├── aibot-telegram/      # Telegram Bot interface
@@ -271,14 +284,11 @@ ai-bot/
 └── aibot-app/           # Main application module
 ```
 
-## License
+## Additional commands
 
-MIT
+### Web UI for Ollama
 
-### Useful commands
-
-## Web UI for Ollama
-```
+```bash
 docker run -d \
   --name open-webui \
   -p 3000:8080 \
@@ -288,9 +298,19 @@ docker run -d \
   ghcr.io/open-webui/open-webui:main
 ```
 
-## Port forwarding (example)
-ssh -N -L 23750:/var/run/docker.sock user@your-server.local
+### Port forwarding (example)
 
-## Teardown and full bring-up
+```bash
+ssh -N -L 23750:/var/run/docker.sock user@your-server.local
+```
+
+### Teardown and full bring-up
+
+```bash
 docker-compose -H tcp://localhost:23750 down -v
 docker-compose -H tcp://localhost:23750 up -d
+```
+
+## License
+
+MIT.
