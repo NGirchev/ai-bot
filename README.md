@@ -160,10 +160,10 @@ mvn test -pl aibot-telegram
 ### Run a specific test
 ```bash
 # Example from README
-mvn test -Dtest=repository.telegram.ru.girchev.aibot.common.TelegramUserRepositoryTest -pl aibot-app
+mvn test -Dtest=repository.telegram.io.github.ngirchev.aibot.common.TelegramUserRepositoryTest -pl aibot-app
 
 # Specific method
-mvn test "-Dtest=repository.telegram.ru.girchev.aibot.common.TelegramUserRepositoryTest#whenSaveUser_thenUserIsSaved" -pl aibot-app
+mvn test "-Dtest=repository.telegram.io.github.ngirchev.aibot.common.TelegramUserRepositoryTest#whenSaveUser_thenUserIsSaved" -pl aibot-app
 
 # SpringAIGatewayIT (streaming)
 mvn test -pl aibot-spring-ai -Dtest=SpringAIGatewayIT
