@@ -1,0 +1,57 @@
+---
+description: Правила работы с @ConfigurationProperties
+globs: 
+alwaysApply: true
+---
+
+# Правила работы с @ConfigurationProperties
+
+**ВАЖНО:** При создании классов с `@ConfigurationProperties`:
+
+1. **Все значения обязательны** - должны быть указаны в `application.yml`
+2. **Дефолтные значения НЕ задаются в коде** - только в конфигурации
+3. **Используется валидация** - `@NotNull`, `@Min`, `@Max` для гарантии корректности значений
+4. **Используются типы-обертки** (`Integer`, `Double`, `Boolean`) для поддержки `@NotNull`
+5. **Валидация гарантирует**, что все значения указаны и корректны при старте приложения
+
+**Пример правильного использования:**
+```java
+@ConfigurationProperties(prefix = "ai-bot.context")
+@Validated
+@Getter
+@Setter
+public class ContextProperties {
+    @NotNull(message = "maxContextTokens обязателен")
+    @Min(value = 1000, message = "maxContextTokens должен быть >= 1000")
+    private Integer maxContextTokens; // БЕЗ дефолтного значения!
+    
+    @NotNull(message = "summaryTriggerThreshold обязателен")
+    @Min(value = 0, message = "summaryTriggerThreshold должен быть >= 0.0")
+    @Max(value = 1, message = "summaryTriggerThreshold должен быть <= 1.0")
+    private Double summaryTriggerThreshold; // БЕЗ дефолтного значения!
+    
+    // ... остальные поля
+}
+```
+
+**НЕПРАВИЛЬНО:**
+```java
+private int maxContextTokens = 8000; // ❌ Дефолтное значение в коде
+private Integer maxContextTokens = 8000; // ❌ Дефолтное значение в коде
+```
+
+**ПРАВИЛЬНО:**
+```java
+@NotNull
+@Min(value = 1000)
+private Integer maxContextTokens; // ✅ Значение только из application.yml
+```
+
+**Импорты:**
+```java
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+```

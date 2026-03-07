@@ -1,0 +1,60 @@
+# Общая конфигурация для интеграционных тестов
+# Используется с @ActiveProfiles("integration-test")
+
+spring:
+  ai:
+    openai:
+      api-key: ${OPENROUTER_KEY:}
+      base-url: https://openrouter.ai/api
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  # Отключаем ненужные автоконфигурации для тестов
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.ollama.autoconfigure.OllamaAutoConfiguration
+      - org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration
+      - org.springframework.ai.model.chat.memory.repository.jdbc.autoconfigure.JdbcChatMemoryRepositoryAutoConfiguration
+      - ru.girchev.aibot.ai.springai.config.SpringAIAutoConfig
+
+# aibot настройки для интеграционных тестов
+ai-bot:
+  telegram:
+    token: test-token
+    username: test-bot
+    start-message: Hello from integration test
+    whitelist-exceptions: ""
+    whitelist-channel-id-exceptions: ""
+  common:
+    bulkhead:
+      enabled: true
+    openrouter-free-models:
+      enabled: false
+    conversation-context:
+      enabled: false
+      max-context-tokens: 1000
+      max-response-tokens: 500
+      default-window-size: 1
+      summary-trigger-threshold: 0.7
+      include-system-prompt: true
+      token-estimation-chars-per-token: 4
+  ai:
+    spring-ai:
+      enabled: true
+      mock: false
+      history-window-size: 10
+      timeouts:
+        response-timeout-seconds: 120
+        stream-timeout-seconds: 120
+      serper:
+        api:
+          key: test-key
+          url: https://google.serper.dev/search
+      # Модели для теста - используем openrouter/auto с бесплатным max_price
+      models:
+        list:
+          - name: openrouter/auto
+            capabilities:
+              - AUTO
+              - CHAT
+            provider-type: OPENAI
+            priority: 1

@@ -1,0 +1,190 @@
+server:
+  port: 8080
+
+ai-bot:
+  common:
+    openrouter-free-models:
+      enabled: true
+      api:
+        key: ${OPENROUTER_KEY}
+        url: https://openrouter.ai/api
+      refresh-initial-delay: 10s
+      refresh-interval: 1h
+      filters:
+        include-model-ids:
+          - meta-llama/llama-3.3-70b-instruct:free
+          - mistralai/mistral-small-3.1-24b-instruct:free
+          - google/gemini-2.0-flash-exp:free
+          - google/gemma-3-27b-it:free
+          - openai/gpt-oss-120b:free
+          - openai/gpt-oss-20b:free
+          - qwen/qwen3-next-80b-a3b-instruct:free
+          - z-ai/glm-4.5-air:free
+          - tngtech/tng-r1t-chimera:free
+      ranking:
+        enabled: true
+        retry-max-attempts: 3
+        latency-ewma-alpha: 0.2
+        cooldown429: 10m
+        cooldown5xx: 5m
+    bulkhead:
+      enabled: true
+      instances:
+        ADMIN:
+          maxConcurrentCalls: 10
+          maxWaitDuration: 1s
+        VIP:
+          maxConcurrentCalls: 5
+          maxWaitDuration: 1s
+        REGULAR:
+          maxConcurrentCalls: 1
+          maxWaitDuration: 500ms
+    admin:
+      enabled: ${ADMIN_ENABLED:true}
+      telegram-id: ${ADMIN_TELEGRAM_ID:}
+      rest-email: ${ADMIN_REST_EMAIL:}
+    assistant-role: "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Also you are speaking only in Russian language."
+    conversation-context:
+      enabled: false # when we are using aibot-spring-ai we shouldn't use it
+      max-context-tokens: 8000
+      max-response-tokens: 4000
+      default-window-size: 20
+      summary-trigger-threshold: 0.7
+      include-system-prompt: true
+      token-estimation-chars-per-token: 4
+  telegram:
+    enabled: true
+    username: ${TELEGRAM_USERNAME}
+    token: ${TELEGRAM_TOKEN}
+    whitelist-exceptions: ${WHITELIST_EXCEPTIONS:}
+    whitelist-channel-id-exceptions: ${WHITELIST_CHANNEL_ID_EXCEPTIONS:}
+    start-message: "Привет! Я бот с интеграцией DeepSeek и OpenRouter. Задай мне любой вопрос, и я постараюсь на него ответить.\nДоступные команды:\n"
+    commands:
+      start-enabled: true
+      role-enabled: true
+      message-enabled: true
+      bugreport-enabled: true
+      newthread-enabled: true
+      history-enabled: true
+      threads-enabled: true
+  rest:
+    enabled: true
+  ui:
+    enabled: true
+  ai:
+    spring-ai:
+      enabled: true
+      openrouter-auto-rotation:
+        max-attempts: 3
+      serper:
+        api:
+          url: "https://google.serper.dev/search"
+          key: ${SERPER_KEY}
+      mock: false
+      history-window-size: 20
+      timeouts:
+        response-timeout-seconds: 600  # 10 минут для HTTP запросов к AI провайдерам
+        stream-timeout-seconds: 600    # 10 минут для обработки стриминга
+      models:
+        list:
+          - name: "openrouter/auto"
+            capabilities:
+              - AUTO
+            provider-type: OPENAI
+            priority: 3
+#          - name: "gpt-oss:20b"
+#            capabilities:
+#              - CHAT
+#              - TOOL_CALLING
+#            provider-type: OLLAMA
+#            priority: 1
+          - name: "qwen2.5:7b"
+            capabilities:
+              - CHAT
+              - TOOL_CALLING
+            provider-type: OLLAMA
+            priority: 1
+#          - name: "qwen3:8b"
+#            capabilities:
+#              - CHAT
+#              - TOOL_CALLING
+#            provider-type: OLLAMA
+#            priority: 1
+          - name: "llama2:latest"
+            capabilities:
+              - CHAT
+            provider-type: OLLAMA
+            priority: 1
+          - name: "qwen3-embedding:8b"
+            capabilities:
+              - EMBEDDING
+            provider-type: OLLAMA
+            priority: 1
+          - name: "mistral:7b"
+            capabilities:
+              - STRUCTURED_OUTPUT
+              - SUMMARIZATION
+            provider-type: OLLAMA
+            priority: 1
+          - name: "tngtech/deepseek-r1t2-chimera:free"
+            capabilities:
+              - CHAT
+              - STRUCTURED_OUTPUT
+              - SUMMARIZATION
+            provider-type: OPENAI
+            priority: 3
+          - name: "xiaomi/mimo-v2-flash:free"
+            capabilities:
+              - CHAT
+              - TOOL_CALLING
+              - SUMMARIZATION
+            provider-type: OPENAI
+            priority: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: metrics,prometheus
+  endpoint:
+    metrics:
+      enabled: true
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ai_bot}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: false
+
+  ai:
+    ollama:
+      # ВАЖНО: Если возникают DNS ошибки (NXDOMAIN) для .local доменов,
+      # используйте IP адрес вместо домена, например: http://192.168.1.x:11434
+      # Или добавьте запись в /etc/hosts: echo "192.168.1.x your-ollama-host.local" | sudo tee -a /etc/hosts
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    openai:
+      base-url: https://openrouter.ai/api
+      api-key: ${OPENROUTER_KEY:}
+      chat:
+        options:
+          model: ${OPENROUTER_MODEL:tngtech/deepseek-r1t2-chimera:free}
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never
+
+logging:
+  level:
+    root: INFO
+    ru.girchev.aibot: INFO
+    org.springframework.ai.chat.model.MessageAggregator: WARN
+    reactor.core.publisher: WARN
+    org.springframework.web.reactive.function.client: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    exception-conversion-word: "%ex{short}"

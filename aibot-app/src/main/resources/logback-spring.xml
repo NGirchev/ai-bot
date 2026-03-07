@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Паттерн с ограниченным стектрейсом (первые 15 строк) -->
+    <property name="CONSOLE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%ex{15}"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Сокращаем стектрейсы для Spring AI и Reactor -->
+    <!-- MessageAggregator логирует на ERROR, но без стектрейсов -->
+    <logger name="org.springframework.ai.chat.model.MessageAggregator" level="ERROR" additivity="false">
+        <appender-ref ref="CONSOLE_NO_STACKTRACE"/>
+    </logger>
+
+    <logger name="reactor.core.publisher" level="WARN"/>
+
+    <logger name="org.springframework.web.reactive.function.client" level="WARN"/>
+
+    <!-- Appender без стектрейсов для MessageAggregator -->
+    <appender name="CONSOLE_NO_STACKTRACE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

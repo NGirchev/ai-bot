@@ -1,0 +1,37 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.ollama.OllamaAutoConfiguration
+      - ru.girchev.aibot.ai.springai.config.SpringAIAutoConfig
+  ai:
+    openai:
+      api-key: mock-key
+    ollama:
+      base-url: http://localhost:11434
+
+ai-bot:
+  telegram:
+    enabled: true
+  common:
+    assistant-role: Ты полезный ассистент
+    conversation-context:
+      enabled: false
+      max-context-tokens: 8000
+      max-response-tokens: 4000
+      default-window-size: 5
+      summary-trigger-threshold: 0.7
+      include-system-prompt: true
+      token-estimation-chars-per-token: 4
+  ai:
+    openrouter:
+      enabled: false
+    deepseek:
+      enabled: false
+    spring-ai:
+      enabled: false

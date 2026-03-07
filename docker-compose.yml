@@ -1,0 +1,146 @@
+services:
+  # Приложение AI Bot
+  aibot-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-bot-app
+    ports:
+      - "8080:8080"
+    environment:
+      # Telegram
+      - TELEGRAM_USERNAME=${TELEGRAM_USERNAME}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - WHITELIST_EXCEPTIONS=${WHITELIST_EXCEPTIONS:-}
+      - WHITELIST_CHANNEL_ID_EXCEPTIONS=${WHITELIST_CHANNEL_ID_EXCEPTIONS:-}
+      # Admin
+      - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
+      - ADMIN_REST_EMAIL=${ADMIN_REST_EMAIL:-}
+      # AI Providers
+      - OPENROUTER_KEY=${OPENROUTER_KEY}
+      - SERPER_KEY=${SERPER_KEY:-}
+      - SERP_API_KEY=${SERP_API_KEY:-}
+      # Database (используем имя сервиса из docker-compose)
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ai_bot}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ai-bot-network
+
+  prometheus:
+    image: prom/prometheus:v3.7.1
+    container_name: ai-bot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - ai-bot-network
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    container_name: ai-bot-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123456
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - ai-bot-network
+
+  postgres:
+    image: postgres:17.0
+    container_name: ai-bot-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_bot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ai_bot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - ai-bot-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: ai-bot-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    networks:
+      - ai-bot-network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: ai-bot-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - ai-bot-network
+
+#  metricbeat:
+#    image: docker.elastic.co/beats/metricbeat:8.12.0
+#    container_name: ai-bot-metricbeat
+#    user: root
+#    privileged: true
+#    volumes:
+#      - ./metricbeat.yml:/tmp/metricbeat.yml:ro
+#      - /var/run/docker.sock:/var/run/docker.sock:ro
+#    environment:
+#      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+#    command:
+#      - sh
+#      - -c
+#      - |
+#        cp /tmp/metricbeat.yml /usr/share/metricbeat/metricbeat.yml &&
+#        chown root:root /usr/share/metricbeat/metricbeat.yml &&
+#        chmod 600 /usr/share/metricbeat/metricbeat.yml &&
+#        exec metricbeat -e -c /usr/share/metricbeat/metricbeat.yml
+#    depends_on:
+#      - elasticsearch
+#    restart: unless-stopped
+#    networks:
+#      - ai-bot-network
+
+volumes:
+  grafana-storage:
+  elasticsearch-data:
+  postgres-data:
+  prometheus-data:
+
+networks:
+  ai-bot-network:
+    driver: bridge

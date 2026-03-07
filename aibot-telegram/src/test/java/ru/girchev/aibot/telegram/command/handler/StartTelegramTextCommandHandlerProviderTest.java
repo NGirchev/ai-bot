@@ -1,0 +1,260 @@
+package ru.girchev.aibot.telegram.command.handler;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
+import ru.girchev.aibot.bulkhead.service.PriorityRequestExecutor;
+import ru.girchev.aibot.common.ai.factory.AICommandFactoryRegistry;
+import ru.girchev.aibot.common.config.CoreCommonProperties;
+import ru.girchev.aibot.common.repository.ConversationThreadRepository;
+import ru.girchev.aibot.common.repository.AIBotMessageRepository;
+import ru.girchev.aibot.common.service.AIGatewayRegistry;
+import ru.girchev.aibot.common.service.AssistantRoleService;
+import ru.girchev.aibot.common.service.BugreportService;
+import ru.girchev.aibot.common.service.ConversationContextBuilderService;
+import ru.girchev.aibot.common.service.ConversationThreadService;
+import ru.girchev.aibot.common.service.AIBotMessageService;
+import ru.girchev.aibot.common.service.SummarizationService;
+import ru.girchev.aibot.telegram.TelegramBot;
+import ru.girchev.aibot.telegram.command.handler.impl.RoleTelegramCommandHandler;
+import ru.girchev.aibot.telegram.command.handler.impl.StartTelegramCommandHandler;
+import ru.girchev.aibot.telegram.config.TelegramCommandHandlerConfig;
+import ru.girchev.aibot.telegram.config.TelegramProperties;
+import ru.girchev.aibot.telegram.repository.TelegramUserRepository;
+import ru.girchev.aibot.telegram.service.TelegramMessageService;
+import ru.girchev.aibot.telegram.service.TelegramUserService;
+import ru.girchev.aibot.telegram.service.TelegramUserSessionService;
+import ru.girchev.aibot.telegram.service.TypingIndicatorService;
+
+import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+
+/**
+ * Тест для воспроизведения проблемы с ObjectProvider&lt;TelegramSupportedCommandProvider&gt;
+ * Проверяет, что провайдер возвращает все бины обработчиков команд
+ */
+@SpringBootTest(classes = {
+        TelegramCommandHandlerConfig.class
+})
+@Import(StartTelegramTextCommandHandlerProviderTest.TestConfig.class)
+@TestPropertySource(properties = {
+        "ai-bot.telegram.enabled=true",
+        "ai-bot.telegram.commands.start-enabled=true",
+        "ai-bot.telegram.commands.role-enabled=true",
+        "ai-bot.telegram.commands.message-enabled=true",
+        "ai-bot.telegram.commands.newthread-enabled=true",
+        "ai-bot.telegram.commands.history-enabled=true",
+        "ai-bot.telegram.commands.threads-enabled=true",
+        "ai-bot.telegram.token=test-token",
+        "ai-bot.telegram.username=test-bot",
+        "ai-bot.telegram.start-message=Test start message\n"
+})
+class StartTelegramTextCommandHandlerProviderTest {
+
+    @Autowired
+    private ObjectProvider<TelegramSupportedCommandProvider> handlersProvider;
+
+    @Autowired
+    private StartTelegramCommandHandler startTelegramCommandHandler;
+
+    @Test
+    void whenHandlersProviderInjected_thenShouldContainAllHandlers() {
+        // Act
+        List<TelegramSupportedCommandProvider> handlers = handlersProvider.orderedStream()
+                .toList();
+
+        // Assert
+        assertNotNull(handlers, "Провайдер не должен быть null");
+        assertFalse(handlers.isEmpty(), "Провайдер должен содержать хотя бы один обработчик");
+
+        // Проверяем, что есть RoleTelegramCommandHandlerImpl (он реализует getSupportedCommand)
+        boolean hasRoleHandler = handlers.stream()
+                .anyMatch(RoleTelegramCommandHandler.class::isInstance);
+        assertTrue(hasRoleHandler, "Провайдер должен содержать RoleTelegramCommandHandlerImpl");
+
+        System.out.println("Найдено обработчиков через ObjectProvider: " + handlers.size());
+        handlers.forEach(h -> System.out.println("  - " + h.getClass().getSimpleName()));
+    }
+
+    @Test
+    void whenStartHandlerUsesProvider_thenShouldGetAllHandlers() {
+        // Arrange
+        List<TelegramSupportedCommandProvider> handlersFromProvider = handlersProvider.orderedStream()
+                .toList();
+
+        // Act - проверяем, что StartTelegramCommandHandlerImpl использует провайдер
+        // и получает все обработчики (кроме себя)
+        List<TelegramSupportedCommandProvider> handlersInStart = handlersProvider.orderedStream()
+                .filter(h -> h != startTelegramCommandHandler)
+                .toList();
+
+        // Assert
+        assertNotNull(handlersInStart, "Список обработчиков в StartTelegramCommandHandlerImpl не должен быть null");
+        assertEquals(handlersFromProvider.size() - 1, handlersInStart.size(),
+                "StartTelegramCommandHandlerImpl должен видеть все обработчики кроме себя");
+
+        // Проверяем, что RoleTelegramCommandHandlerImpl присутствует
+        boolean hasRoleHandler = handlersInStart.stream()
+                .anyMatch(RoleTelegramCommandHandler.class::isInstance);
+        assertTrue(hasRoleHandler,
+                "StartTelegramCommandHandlerImpl должен видеть RoleTelegramCommandHandlerImpl через провайдер");
+
+        System.out.println("Обработчики, видимые StartTelegramCommandHandlerImpl: " + handlersInStart.size());
+        handlersInStart.forEach(h -> {
+            String command = h.getSupportedCommandText();
+            System.out.println("  - " + h.getClass().getSimpleName() + 
+                    (command != null ? " (команда: " + command + ")" : " (без команды)"));
+        });
+    }
+
+    @Test
+    void whenGetSupportedCommands_thenShouldReturnNonEmptyList() {
+        // Act
+        String commands = handlersProvider.orderedStream()
+                .filter(h -> h != startTelegramCommandHandler)
+                .map(TelegramSupportedCommandProvider::getSupportedCommandText)
+                .filter(cmd -> cmd != null && !cmd.isEmpty())
+                .collect(Collectors.joining("\n"));
+
+        // Assert
+        assertNotNull(commands, "Список команд не должен быть null");
+        assertFalse(commands.isEmpty(), "Список команд не должен быть пустым");
+        
+        System.out.println("Доступные команды:\n" + commands);
+    }
+
+    @TestConfiguration
+    static class TestConfig {
+
+        @Bean
+        public PriorityRequestExecutor priorityRequestExecutor() {
+            return mock(PriorityRequestExecutor.class);
+        }
+
+        @Bean
+        public TelegramBot telegramBot() {
+            return mock(TelegramBot.class);
+        }
+
+        @Bean
+        public TelegramProperties telegramProperties() {
+            TelegramProperties props = new TelegramProperties();
+            props.setToken("test-token");
+            props.setUsername("test-bot");
+            props.setStartMessage("Test start message\n");
+            return props;
+        }
+
+        @Bean
+        public CoreCommonProperties coreCommonProperties() {
+            CoreCommonProperties props = new CoreCommonProperties();
+            props.setAssistantRole("Test assistant role");
+            // Настраиваем ConversationContext для SummarizationService
+            CoreCommonProperties.ConversationContextProperties context = new CoreCommonProperties.ConversationContextProperties();
+            context.setMaxContextTokens(8000);
+            context.setMaxResponseTokens(4000);
+            context.setDefaultWindowSize(20);
+            context.setSummaryTriggerThreshold(0.7);
+            context.setIncludeSystemPrompt(true);
+            context.setTokenEstimationCharsPerToken(4);
+            props.setConversationContext(context);
+            return props;
+        }
+
+        @Bean
+        public TelegramUserService telegramUserService() {
+            return mock(TelegramUserService.class);
+        }
+
+        @Bean
+        public TelegramUserSessionService telegramUserSessionService() {
+            return mock(TelegramUserSessionService.class);
+        }
+
+        @Bean
+        public TelegramMessageService telegramMessageService() {
+            return mock(TelegramMessageService.class);
+        }
+
+        @Bean
+        public AIGatewayRegistry aiGatewayRegistry() {
+            return mock(AIGatewayRegistry.class);
+        }
+
+        @Bean
+        public BugreportService bugreportService() {
+            return mock(BugreportService.class);
+        }
+
+        @Bean
+        public AIBotMessageService messageService() {
+            return mock(AIBotMessageService.class);
+        }
+
+        @Bean
+        public AICommandFactoryRegistry aiCommandFactoryRegistry() {
+            return mock(AICommandFactoryRegistry.class);
+        }
+
+        @Bean
+        public ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+
+        @Bean
+        public ConversationThreadService conversationThreadService() {
+            return mock(ConversationThreadService.class);
+        }
+
+        @Bean
+        public ConversationThreadRepository conversationThreadRepository() {
+            return mock(ConversationThreadRepository.class);
+        }
+
+        @Bean
+        public ConversationContextBuilderService contextBuilderService() {
+            return mock(ConversationContextBuilderService.class);
+        }
+
+        @Bean
+        public AssistantRoleService assistantRoleService() {
+            return mock(AssistantRoleService.class);
+        }
+
+        @Bean
+        public SummarizationService summarizationService() {
+            return mock(SummarizationService.class);
+        }
+
+        @Bean
+        public TelegramUserRepository telegramUserRepository() {
+            return mock(TelegramUserRepository.class);
+        }
+
+        @Bean
+        public AIBotMessageRepository messageRepository() {
+            return mock(AIBotMessageRepository.class);
+        }
+
+        @Bean
+        public ScheduledExecutorService typingIndicatorScheduledExecutor() {
+            return mock(ScheduledExecutorService.class);
+        }
+
+        @Bean
+        public TypingIndicatorService typingIndicatorService() {
+            return mock(TypingIndicatorService.class);
+        }
+    }
+}
+

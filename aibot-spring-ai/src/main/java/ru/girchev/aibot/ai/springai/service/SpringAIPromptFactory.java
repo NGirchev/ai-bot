@@ -1,0 +1,269 @@
+package ru.girchev.aibot.ai.springai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import ru.girchev.aibot.ai.springai.advisor.MessageOrderingAdvisor;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import ru.girchev.aibot.ai.springai.config.SpringAIModelConfig;
+import ru.girchev.aibot.ai.springai.tool.WebTools;
+import ru.girchev.aibot.common.ai.ModelType;
+import ru.girchev.aibot.common.ai.command.AIBotChatOptions;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
+import static ru.girchev.aibot.common.ai.LlmParamNames.*;
+
+@Slf4j
+@RequiredArgsConstructor
+public class SpringAIPromptFactory {
+
+    private final ChatClient ollamaChatClient;
+    private final ChatClient openAiChatClient;
+    private final WebTools webTools;
+    private final ChatMemory chatMemory;
+    private final SpringAIModelType springAIModelType;
+    /**
+     * true -> Spring AI ChatMemory (MessageChatMemoryAdvisor) is the source of history.
+     * false -> history is provided explicitly via messages (manual context builder).
+     */
+    private final boolean useChatMemoryAdvisor;
+
+    public ChatClient.ChatClientRequestSpec preparePrompt(
+            SpringAIModelConfig modelConfig,
+            String modelName,
+            Map<String, Object> body,
+            Object conversationId,
+            boolean toolsEnabled,
+            List<Message> messages
+    ) {
+        return preparePrompt(modelConfig, modelName, body, conversationId, toolsEnabled, messages, null);
+    }
+
+    public ChatClient.ChatClientRequestSpec preparePrompt(
+            SpringAIModelConfig modelConfig,
+            String modelName,
+            Map<String, Object> body,
+            Object conversationId,
+            boolean toolsEnabled,
+            List<Message> messages,
+            AIBotChatOptions chatOptions
+    ) {
+        String resolvedModelName = modelConfig != null ? modelConfig.getName() : modelName;
+        ChatClient chatClient = getChatClient(modelConfig, resolvedModelName);
+        var promptBuilder = chatClient.prompt();
+        promptBuilder.options(buildChatOptions(modelConfig, resolvedModelName, body, chatOptions));
+
+        // Добавляем MessageChatMemoryAdvisor, который добавит историю из ChatMemory
+        // ВАЖНО: MessageChatMemoryAdvisor добавляет историю ПЕРЕД System сообщениями (известный баг Spring AI #4170)
+        // Поэтому добавляем MessageOrderingAdvisor после него для исправления порядка: System -> История -> User
+        if (useChatMemoryAdvisor && conversationId != null) {
+            promptBuilder
+                    .advisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                    .advisors(a -> a.param(CONVERSATION_ID, conversationId))
+                    .advisors(new MessageOrderingAdvisor()); // Переупорядочивает сообщения: System первыми
+        }
+
+        // Добавляем System сообщение (если есть) - Spring AI гарантирует, что System сообщения
+        // всегда будут в начале промпта, даже если история добавляется через advisor
+        if (messages != null && !messages.isEmpty()) {
+            if (useChatMemoryAdvisor) {
+                for (Message message : messages) {
+                    if (message instanceof SystemMessage systemMessage) {
+                        promptBuilder.system(systemMessage.getText());
+                    }
+                }
+            }
+        }
+
+        if (toolsEnabled) {
+            promptBuilder.tools(webTools);
+        }
+
+        // Наконец, добавляем User сообщение - оно будет последним
+        if (messages != null && !messages.isEmpty()) {
+            if (useChatMemoryAdvisor) {
+                // В режиме ChatMemory: MessageChatMemoryAdvisor автоматически добавит историю из ChatMemory
+                // между System и User сообщениями.
+                // ВАЖНО: Добавляем только ПОСЛЕДНЕЕ User сообщение из списка, чтобы избежать дублирования.
+                // MessageChatMemoryAdvisor уже добавил историю из ChatMemory, нам нужно добавить только текущее новое сообщение.
+                UserMessage lastUserMessage = null;
+                for (Message message : messages) {
+                    if (message instanceof UserMessage userMessage) {
+                        lastUserMessage = userMessage; // Сохраняем последнее User сообщение
+                    }
+                }
+                if (lastUserMessage != null) {
+                    // Добавляем только последнее User сообщение (текущий запрос пользователя)
+                    promptBuilder.user(lastUserMessage.getText());
+                }
+                // Игнорируем AssistantMessage - они уже в ChatMemory
+            } else {
+                // В ручном режиме передаем всю историю как есть
+                promptBuilder.messages(messages);
+            }
+        }
+
+        return promptBuilder;
+    }
+
+    private ChatOptions buildChatOptions(
+            SpringAIModelConfig modelConfig,
+            String modelName,
+            Map<String, Object> body,
+            AIBotChatOptions chatOptions
+    ) {
+        Map<String, Object> safeOverrides = body != null ? body : Collections.emptyMap();
+        
+        // Используем значения из chatOptions, если их нет в body
+        Double temperature = getDouble(safeOverrides, TEMPERATURE);
+        if (temperature == null && chatOptions != null) {
+            temperature = chatOptions.temp();
+        }
+        
+        Integer maxTokens = getInteger(safeOverrides, MAX_TOKENS);
+        if (maxTokens == null && chatOptions != null) {
+            maxTokens = chatOptions.maxTokens();
+        }
+        
+        if (isOpenAIProvider(modelConfig, modelName)) {
+            OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                    .model(modelName)
+                    .frequencyPenalty(getDouble(safeOverrides, FREQUENCY_PENALTY))
+                    .temperature(temperature)
+                    .maxTokens(maxTokens)
+                    .topP(getDouble(safeOverrides, TOP_P));
+
+            Map<String, Object> extraBody = extractExtraBody(safeOverrides);
+            if ((extraBody == null || extraBody.isEmpty())
+                    && isOpenRouterAutoModel(modelName)) {
+                extraBody = defaultOpenRouterFreeMaxPriceExtraBody();
+                log.debug("Applying default max_price=0 for model={}", modelName);
+            }
+            if (extraBody != null && !extraBody.isEmpty()) {
+                optionsBuilder.extraBody(extraBody);
+            }
+
+            return optionsBuilder.build();
+        }
+
+        return ChatOptions.builder()
+                .model(modelName)
+                .frequencyPenalty(getDouble(safeOverrides, FREQUENCY_PENALTY))
+                .temperature(temperature)
+                .maxTokens(maxTokens)
+                .topK(getInteger(safeOverrides, TOP_K))
+                .topP(getDouble(safeOverrides, TOP_P))
+                .build();
+    }
+
+    private Map<String, Object> extractExtraBody(Map<String, Object> body) {
+        if (body == null || body.isEmpty()) {
+            return null;
+        }
+
+        Object maxPrice = body.get(MAX_PRICE);
+        if (maxPrice == null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> options = (Map<String, Object>) body.get(OPTIONS);
+            if (options != null) {
+                maxPrice = options.get(MAX_PRICE);
+            }
+        }
+
+        if (maxPrice == null) {
+            return null;
+        }
+
+        Map<String, Object> normalizedMaxPrice;
+        if (maxPrice instanceof Map<?, ?> maxPriceMap) {
+            normalizedMaxPrice = new HashMap<>();
+            maxPriceMap.forEach((key, value) -> {
+                if (key != null) {
+                    normalizedMaxPrice.put(key.toString(), value);
+                }
+            });
+        } else if (maxPrice instanceof Number || maxPrice instanceof String) {
+            Double maxPriceValue = maxPrice instanceof Number number
+                    ? Double.valueOf(number.doubleValue())
+                    : getDouble(Map.of(MAX_PRICE, maxPrice), MAX_PRICE);
+            if (maxPriceValue == null) {
+                log.warn("Ignoring invalid max_price value: {}", maxPrice);
+                return null;
+            }
+            normalizedMaxPrice = Map.of(
+                    "prompt", maxPriceValue,
+                    "completion", maxPriceValue
+            );
+        } else {
+            log.warn("Ignoring invalid max_price type: {}. OpenRouter expects an object.",
+                    maxPrice.getClass().getSimpleName());
+            return null;
+        }
+
+        Map<String, Object> extraBody = new HashMap<>();
+        extraBody.put(MAX_PRICE, normalizedMaxPrice);
+        return extraBody;
+    }
+
+    private boolean isOpenRouterAutoModel(String modelName) {
+        return springAIModelType.getByModelName(modelName)
+                .filter(model -> model.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI)
+                .map(model -> model.getCapabilities() != null && model.getCapabilities().contains(ModelType.AUTO))
+                .orElse(false);
+    }
+
+    private Map<String, Object> defaultOpenRouterFreeMaxPriceExtraBody() {
+        Map<String, Object> maxPrice = Map.of(
+                "prompt", 0.0d,
+                "completion", 0.0d
+        );
+        Map<String, Object> extraBody = new HashMap<>();
+        extraBody.put(MAX_PRICE, maxPrice);
+        return extraBody;
+    }
+
+    private ChatClient getChatClient(SpringAIModelConfig modelConfig, String modelName) {
+        if (modelConfig != null && modelConfig.getProviderType() != null) {
+            return modelConfig.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI
+                    ? openAiChatClient
+                    : ollamaChatClient;
+        }
+        if (modelName != null) {
+            if (isOpenAIProvider(null, modelName)) {
+                return openAiChatClient;
+            } else if (springAIModelType.isOllamaModel(modelName)) {
+                return ollamaChatClient;
+            }
+        }
+
+        return ollamaChatClient;
+    }
+
+    private boolean isOpenAIProvider(SpringAIModelConfig modelConfig, String modelName) {
+        if (modelConfig != null && modelConfig.getProviderType() != null) {
+            return modelConfig.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI;
+        }
+        if (modelName == null) {
+            return false;
+        }
+        if (springAIModelType.isOpenAIModel(modelName)) {
+            return true;
+        }
+        return looksLikeOpenRouterModel(modelName);
+    }
+
+    private boolean looksLikeOpenRouterModel(String modelName) {
+        return modelName.contains("/") || modelName.contains(":free");
+    }
+}

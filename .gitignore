@@ -1,0 +1,28 @@
+# Project exclude paths
+*/target/
+*.iml
+/.mvn/
+/.vscode/
+/aibot-telegram/target/
+/aibot-common/target/
+/aibot-deepseek/target/
+/aibot-openrouter/target/
+/aibot-app/target/
+/aibot-rest/target/
+/aibot-spring-ai/target/
+/telegram-utils/target/
+/.idea/
+# Исключение: отслеживать конфигурации запуска
+!/.idea/runConfigurations/
+!/.idea/runConfigurations/Application.xml
+
+# Eclipse/STS (m2e) project files
+**/.project
+**/.classpath
+**/.factorypath
+**/.settings/
+
+# macOS
+.DS_Store
+**/.DS_Store
+/.env

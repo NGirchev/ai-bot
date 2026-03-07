@@ -1,0 +1,86 @@
+server:
+  port: 8080
+
+ai-bot:
+  common:
+    openrouter-free-models:
+      enabled: false
+    bulkhead:
+      enabled: true
+      instances:
+        ADMIN:
+          maxConcurrentCalls: 10
+          maxWaitDuration: 1s
+        VIP:
+          maxConcurrentCalls: 5
+          maxWaitDuration: 1s
+        REGULAR:
+          maxConcurrentCalls: 1
+          maxWaitDuration: 500ms
+    admin:
+      enabled: ${ADMIN_ENABLED:true}
+      telegram-id: ${ADMIN_TELEGRAM_ID:}
+      rest-email: ${ADMIN_REST_EMAIL:}
+    assistant-role: "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Also you are speaking only in Russian language."
+    conversation-context:
+      enabled: false # when we are using aibot-spring-ai we shouldn't use it
+      max-context-tokens: 8000
+      max-response-tokens: 4000
+      default-window-size: 20
+      summary-trigger-threshold: 0.7
+      include-system-prompt: true
+      token-estimation-chars-per-token: 4
+  telegram:
+    enabled: true
+    username: ${TELEGRAM_USERNAME}
+    token: ${TELEGRAM_TOKEN}
+    whitelist-exceptions: ${WHITELIST_EXCEPTIONS:}
+    whitelist-channel-id-exceptions: ${WHITELIST_CHANNEL_ID_EXCEPTIONS:}
+    start-message: "Привет! Я бот с интеграцией DeepSeek и OpenRouter. Задай мне любой вопрос, и я постараюсь на него ответить.\nДоступные команды:\n"
+    commands:
+      start-enabled: true
+      role-enabled: true
+      message-enabled: true
+      bugreport-enabled: true
+      newthread-enabled: true
+      history-enabled: true
+      threads-enabled: true
+  rest:
+    enabled: true
+  ui:
+    enabled: true
+  ai:
+    spring-ai:
+      enabled: false
+    gateway-mock:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: metrics,prometheus
+  endpoint:
+    metrics:
+      enabled: true
+
+spring:
+  ai:
+    openai:
+      api-key: "mock-key"  # Фиктивный ключ для отключения Spring AI в mock профиле
+    ollama:
+      base-url: "http://localhost:9999"  # Фиктивный URL для отключения Ollama в mock профиле
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ai_bot}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+    ru.girchev.aibot: DEBUG
+
