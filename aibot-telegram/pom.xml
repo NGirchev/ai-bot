@@ -18,6 +18,7 @@
     </parent>
 
     <artifactId>aibot-telegram</artifactId>
+    <name>AI Bot Telegram</name>
 
     <properties>
         <java.version>21</java.version>

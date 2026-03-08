@@ -18,6 +18,7 @@
     </parent>
 
     <artifactId>aibot-spring-ai</artifactId>
+    <name>AI Bot Spring AI</name>
 
     <properties>
         <java.version>21</java.version>

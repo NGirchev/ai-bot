@@ -18,6 +18,7 @@
     </parent>
 
     <artifactId>aibot-gateway-mock</artifactId>
+    <name>AI Bot Gateway Mock</name>
 
     <properties>
         <java.version>21</java.version>

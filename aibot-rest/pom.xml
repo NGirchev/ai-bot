@@ -18,6 +18,7 @@
     </parent>
 
     <artifactId>aibot-rest</artifactId>
+    <name>AI Bot REST</name>
 
     <properties>
         <java.version>21</java.version>

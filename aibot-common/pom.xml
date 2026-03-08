@@ -18,6 +18,7 @@
     </parent>
 
     <artifactId>aibot-common</artifactId>
+    <name>AI Bot Common</name>
 
     <properties>
         <java.version>21</java.version>

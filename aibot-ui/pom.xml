@@ -18,6 +18,7 @@
     </parent>
 
     <artifactId>aibot-ui</artifactId>
+    <name>AI Bot UI</name>
 
     <properties>
         <java.version>21</java.version>
