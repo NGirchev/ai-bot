@@ -1,4 +1,4 @@
-# AI Bot Router
+# AI Bot
 
 [![Build Status](https://github.com/NGirchev/ai-bot/actions/workflows/maven.yml/badge.svg)](https://github.com/NGirchev/ai-bot/actions)
 [![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk)](https://openjdk.org/)

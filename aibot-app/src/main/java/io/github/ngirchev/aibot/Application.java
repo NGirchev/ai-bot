@@ -12,7 +12,7 @@ import io.github.ngirchev.aibot.flyway.FlywayMigrationCheck;
 import io.github.ngirchev.aibot.flyway.config.FlywayConfig;
 
 /**
- * Main AI Bot Router application.
+ * Main AI Bot application.
  * JPA configs are in module configs:
  * - CommonJpaConfig (aibot-common) - base Entity and repositories
  * - TelegramJpaConfig (aibot-telegram) - Telegram Entity and repositories (conditional)

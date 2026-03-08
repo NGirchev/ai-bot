@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing to AI Bot Router. We welcome contributions.
+Thank you for your interest in contributing to AI Bot. We welcome contributions.
 
 **Language**: This project uses **English** for all documentation, code comments, commit messages, and issue discussions. Please submit all contributions, bug reports, and comments in English so they can be understood and reviewed by the global developer community.
 

@@ -37,4 +37,3 @@ jobs:
           args: >
             -Dsonar.projectKey=NGirchev_ai-bot
             -Dsonar.organization=ngirchev
-        continue-on-error: true

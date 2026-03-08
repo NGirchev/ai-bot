@@ -94,7 +94,7 @@ Java tech lead, experienced, intolerant of sloppy work. Requires tests and verif
 
 ## Project Overview
 
-**AI Bot Router** — a multi-module Java project for interacting with various AI services through different interfaces (Telegram, REST API, Web UI), with Spring AI integration (OpenRouter, Ollama) and support for custom context and templates.
+**AI Bot** — a multi-module Java project for interacting with various AI services through different interfaces (Telegram, REST API, Web UI), with Spring AI integration (OpenRouter, Ollama) and support for custom context and templates.
 
 ### Architectural concept
 
