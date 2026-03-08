@@ -50,13 +50,13 @@ public abstract class AbstractTelegramCommandHandlerWithResponseSend implements
                 log.error("Access denied for user {}: {}", command.telegramId(), e.getMessage());
                 sendErrorMessage(command.telegramId(), messageLocalizationService.getMessage("common.error.access.denied", command.languageCode()));
             } catch (TelegramCommandHandlerException e) {
-                log.error("Error processing message: {}", e.getMessage(), e);
+                log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, e.getMessage(), e);
                 sendErrorMessage(command.telegramId(), e.getMessage());
             } catch (Exception e) {
                 if (AIUtils.shouldLogWithoutStacktrace(e)) {
-                    log.error("Error processing message: {}", AIUtils.getRootCauseMessage(e));
+                    log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, AIUtils.getRootCauseMessage(e));
                 } else {
-                    log.error("Error processing message: {}", e.getMessage(), e);
+                    log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, e.getMessage(), e);
                 }
                 sendErrorMessage(command.telegramId(), messageLocalizationService.getMessage("common.error.processing", command.languageCode()));
             }

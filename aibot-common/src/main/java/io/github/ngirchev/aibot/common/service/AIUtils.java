@@ -38,6 +38,7 @@ public class AIUtils {
      */
     private static final String OPENROUTER_EMPTY_STREAM_EXCEPTION_CLASS =
             "io.github.ngirchev.aibot.ai.springai.retry.OpenRouterEmptyStreamException";
+    private static final String LOG_ERROR_PROCESSING_STREAMING_RESPONSE = "Error processing streaming response: {}";
     private static final AtomicInteger extractTextEmptyLogCount = new AtomicInteger(0);
     private static final int EXTRACT_TEXT_EMPTY_LOG_LIMIT = 3;
 
@@ -721,9 +722,9 @@ public class AIUtils {
 
         } catch (Exception e) {
             if (shouldLogWithoutStacktrace(e)) {
-                log.error("Error processing streaming response: {}", getRootCauseMessage(e));
+                log.error(LOG_ERROR_PROCESSING_STREAMING_RESPONSE, getRootCauseMessage(e));
             } else {
-                log.error("Error processing streaming response: {}", e.getMessage(), e);
+                log.error(LOG_ERROR_PROCESSING_STREAMING_RESPONSE, e.getMessage(), e);
             }
             throw e;
         }
@@ -808,9 +809,9 @@ public class AIUtils {
 
         } catch (Exception e) {
             if (shouldLogWithoutStacktrace(e)) {
-                log.error("Error processing streaming response: {}", getRootCauseMessage(e));
+                log.error(LOG_ERROR_PROCESSING_STREAMING_RESPONSE, getRootCauseMessage(e));
             } else {
-                log.error("Error processing streaming response: {}", e.getMessage(), e);
+                log.error(LOG_ERROR_PROCESSING_STREAMING_RESPONSE, e.getMessage(), e);
             }
             throw e;
         }

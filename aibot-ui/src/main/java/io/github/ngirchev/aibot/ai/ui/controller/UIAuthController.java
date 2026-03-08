@@ -26,6 +26,8 @@ public class UIAuthController {
 
     private static final String SESSION_EMAIL_KEY = "userEmail";
     private static final String SESSION_USER_ID_KEY = "userId";
+    private static final String KEY_EMAIL = "email";
+    private static final String KEY_MESSAGE = "message";
 
     private String lang(HttpServletRequest request) {
         return request != null && request.getLocale() != null ? request.getLocale().getLanguage() : "ru";
@@ -33,11 +35,11 @@ public class UIAuthController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@RequestBody Map<String, String> request, HttpSession session, HttpServletRequest httpRequest) {
-        String email = request.get("email");
+        String email = request.get(KEY_EMAIL);
         String languageCode = lang(httpRequest);
         if (email == null || email.isBlank()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("message", messageLocalizationService.getMessage("ui.auth.email.required", languageCode)));
+                    .body(Map.of(KEY_MESSAGE, messageLocalizationService.getMessage("ui.auth.email.required", languageCode)));
         }
         try {
             RestUser user = restUserService.getOrCreateUser(email);
@@ -45,13 +47,13 @@ public class UIAuthController {
             session.setAttribute(SESSION_USER_ID_KEY, user.getId());
             log.info("User {} successfully authorized via UI", email);
             return ResponseEntity.ok(Map.of(
-                    "message", messageLocalizationService.getMessage("ui.auth.success", languageCode),
-                    "email", email
+                    KEY_MESSAGE, messageLocalizationService.getMessage("ui.auth.success", languageCode),
+                    KEY_EMAIL, email
             ));
         } catch (Exception e) {
             log.error("Error authorizing user {}", email, e);
             return ResponseEntity.status(500)
-                    .body(Map.of("message", messageLocalizationService.getMessage("ui.auth.error", languageCode, e.getMessage())));
+                    .body(Map.of(KEY_MESSAGE, messageLocalizationService.getMessage("ui.auth.error", languageCode, e.getMessage())));
         }
     }
 
@@ -60,7 +62,7 @@ public class UIAuthController {
         String email = (String) session.getAttribute(SESSION_EMAIL_KEY);
         session.invalidate();
         log.info("User {} logged out", email);
-        return ResponseEntity.ok(Map.of("message", messageLocalizationService.getMessage("ui.logout.success", lang(httpRequest))));
+        return ResponseEntity.ok(Map.of(KEY_MESSAGE, messageLocalizationService.getMessage("ui.logout.success", lang(httpRequest))));
     }
 
     @GetMapping("/me")
@@ -69,11 +71,11 @@ public class UIAuthController {
         Long userId = (Long) session.getAttribute(SESSION_USER_ID_KEY);
         if (email == null) {
             return ResponseEntity.status(401)
-                    .body(Map.of("message", messageLocalizationService.getMessage("ui.auth.not.authenticated", lang(httpRequest))));
+                    .body(Map.of(KEY_MESSAGE, messageLocalizationService.getMessage("ui.auth.not.authenticated", lang(httpRequest))));
         }
         return ResponseEntity.ok(Map.of(
-                "email", email,
-                "userId", userId != null ? userId : 0
+                KEY_EMAIL, email,
+                SESSION_USER_ID_KEY, userId != null ? userId : 0
         ));
     }
 }

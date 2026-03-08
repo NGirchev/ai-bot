@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChatService {
 
+    private static final String SESSION_NOT_FOUND_PREFIX = "Session not found: ";
+
     private final ConversationThreadRepository threadRepository;
     private final ConversationThreadService conversationThreadService;
     private final AIBotMessageRepository messageRepository;
@@ -62,7 +64,7 @@ public class ChatService {
     public <T> ChatResponseDto<T> sendMessage(String sessionId, String message, RestUser user, HttpServletRequest request, boolean isStream) {
         // Find thread by sessionId
         ConversationThread thread = threadRepository.findByThreadKey(sessionId)
-                .orElseThrow(() -> new UnauthorizedException("Session not found: " + sessionId));
+                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
 
         // Verify thread belongs to user
         if (!thread.getUser().getId().equals(user.getId())) {
@@ -117,7 +119,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatMessageDto> getChatHistory(String sessionId, RestUser user) {
         ConversationThread thread = threadRepository.findByThreadKey(sessionId)
-                .orElseThrow(() -> new UnauthorizedException("Session not found: " + sessionId));
+                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
 
         // Verify thread belongs to user
         if (!thread.getUser().getId().equals(user.getId())) {
@@ -141,7 +143,7 @@ public class ChatService {
     @Transactional
     public void deleteSession(String sessionId, RestUser user) {
         ConversationThread thread = threadRepository.findByThreadKey(sessionId)
-                .orElseThrow(() -> new UnauthorizedException("Session not found: " + sessionId));
+                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
 
         // Verify thread belongs to user
         if (!thread.getUser().getId().equals(user.getId())) {

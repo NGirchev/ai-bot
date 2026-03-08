@@ -122,6 +122,7 @@ public class AIBotMessage extends AbstractEntity<Long> {
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "response_data", columnDefinition = "jsonb")
+    @SuppressWarnings("java:S1948") // JPA JSON column; not used in Java serialization
     private Map<String, Object> responseData;
     
     /**
@@ -132,6 +133,7 @@ public class AIBotMessage extends AbstractEntity<Long> {
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
+    @SuppressWarnings("java:S1948") // JPA JSON column; not used in Java serialization
     private Map<String, Object> metadata;
     
     /**
@@ -141,6 +143,7 @@ public class AIBotMessage extends AbstractEntity<Long> {
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attachments", columnDefinition = "jsonb")
+    @SuppressWarnings("java:S1948") // JPA JSON column; not used in Java serialization
     private List<Map<String, Object>> attachments;
     
     /**

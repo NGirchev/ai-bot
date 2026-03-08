@@ -20,7 +20,7 @@ public class UserService implements IUserService {
     private final UserRepository userRepository;
 
     @Override
-    public Optional<? extends IUserObject> findById(Long userId) {
+    public Optional<IUserObject> findById(Long userId) {
         return userRepository.findById(userId)
                 .map(IUserObject.class::cast);
     }

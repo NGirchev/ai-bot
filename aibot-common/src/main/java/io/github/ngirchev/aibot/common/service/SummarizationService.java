@@ -33,6 +33,10 @@ import static io.github.ngirchev.aibot.common.service.AIUtils.retrieveMessage;
 @Slf4j
 public class SummarizationService {
 
+    private static final String NO_MESSAGES_TO_SUMMARIZE_FOR_THREAD = "No messages to summarize for thread {}";
+    private static final String NO_MESSAGES_AFTER_FILTERING = "No messages to summarize after filtering for thread {}";
+    private static final String MEMORY_BULLETS = "memory_bullets";
+
     private final AIBotMessageRepository messageRepository;
     private final ConversationThreadService threadService;
     private final AIGatewayRegistry aiGatewayRegistry;
@@ -91,7 +95,7 @@ public class SummarizationService {
                     .findByThreadOrderBySequenceNumberAsc(thread);
 
             if (messages.isEmpty()) {
-                log.warn("No messages to summarize for thread {}", threadKey);
+                log.warn(NO_MESSAGES_TO_SUMMARIZE_FOR_THREAD, threadKey);
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -100,7 +104,7 @@ public class SummarizationService {
             List<AIBotMessage> messagesToSummarize = filterMessagesForSummarization(messages, keepRecentMessages, thread.getThreadKey());
 
             if (messagesToSummarize.isEmpty()) {
-                log.info("No messages to summarize after filtering for thread {}", threadKey);
+                log.info(NO_MESSAGES_AFTER_FILTERING, threadKey);
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -135,7 +139,7 @@ public class SummarizationService {
             log.info("Starting synchronous summarization for thread {}", threadKey);
 
             if (messages.isEmpty()) {
-                log.warn("No messages to summarize for thread {}", threadKey);
+                log.warn(NO_MESSAGES_TO_SUMMARIZE_FOR_THREAD, threadKey);
                 return;
             }
 
@@ -197,7 +201,7 @@ public class SummarizationService {
      */
     private void performSummarization(ConversationThread thread, List<AIBotMessage> messages) {
         if (messages.isEmpty()) {
-            log.warn("No messages to summarize for thread {}", thread.getThreadKey());
+            log.warn(NO_MESSAGES_TO_SUMMARIZE_FOR_THREAD, thread.getThreadKey());
             return;
         }
 
@@ -290,8 +294,8 @@ public class SummarizationService {
             JsonNode node = objectMapper.readTree(jsonContent);
             String summary = node.has("summary") ? node.get("summary").asText() : "";
             List<String> bullets = new ArrayList<>();
-            if (node.has("memory_bullets") && node.get("memory_bullets").isArray()) {
-                node.get("memory_bullets").forEach(b -> bullets.add(b.asText()));
+            if (node.has(MEMORY_BULLETS) && node.get(MEMORY_BULLETS).isArray()) {
+                node.get(MEMORY_BULLETS).forEach(b -> bullets.add(b.asText()));
             }
             return new SummaryResult(summary, bullets);
         } catch (Exception e) {

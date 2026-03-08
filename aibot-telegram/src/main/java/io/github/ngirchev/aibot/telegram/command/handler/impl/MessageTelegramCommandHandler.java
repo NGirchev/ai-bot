@@ -18,6 +18,7 @@ import io.github.ngirchev.aibot.common.service.*;
 import io.github.ngirchev.aibot.telegram.TelegramBot;
 import io.github.ngirchev.aibot.telegram.command.TelegramCommand;
 import io.github.ngirchev.aibot.telegram.command.TelegramCommandType;
+import io.github.ngirchev.aibot.telegram.command.handler.AbstractTelegramCommandHandler;
 import io.github.ngirchev.aibot.telegram.command.handler.AbstractTelegramCommandHandlerWithResponseSend;
 import io.github.ngirchev.aibot.telegram.model.TelegramUser;
 import io.github.ngirchev.aibot.telegram.model.TelegramUserSession;
@@ -261,9 +262,9 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                 return null;
             }
             if (AIUtils.shouldLogWithoutStacktrace(e)) {
-                log.error("Error processing message: {}", AIUtils.getRootCauseMessage(e));
+                log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, AIUtils.getRootCauseMessage(e));
             } else {
-                log.error("Error processing message", e);
+                log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, e);
             }
             if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
                 // Get role from saved message for saving error

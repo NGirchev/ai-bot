@@ -30,6 +30,9 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class PriorityRequestExecutor implements AutoCloseable {
 
+    private static final String UNKNOWN_USER_PRIORITY_NULL = "Unknown user priority: null";
+    private static final String UNKNOWN_USER_PRIORITY_PREFIX = "Unknown user priority: ";
+
     private final IUserPriorityService userPriorityService;
     private final BulkHeadProperties bulkHeadProperties;
 
@@ -153,8 +156,8 @@ public class PriorityRequestExecutor implements AutoCloseable {
         log.info("Executing request for user {} with priority {}", userId, priority);
 
         if (priority == null) {
-            log.error("Unknown user priority: null");
-            throw new IllegalStateException("Unknown user priority: null");
+            log.error(UNKNOWN_USER_PRIORITY_NULL);
+            throw new IllegalStateException(UNKNOWN_USER_PRIORITY_NULL);
         }
 
         switch (priority) {
@@ -169,7 +172,7 @@ public class PriorityRequestExecutor implements AutoCloseable {
                 throw new AccessDeniedException("User is blocked. Access denied.");
             default:
                 log.error("Unknown user priority: {}", priority);
-                throw new IllegalStateException("Unknown user priority: " + priority);
+                throw new IllegalStateException(UNKNOWN_USER_PRIORITY_PREFIX + priority);
         }
     }
 
@@ -186,9 +189,9 @@ public class PriorityRequestExecutor implements AutoCloseable {
         log.info("Executing request asynchronously for user {} with priority {}", userId, priority);
 
         if (priority == null) {
-            log.error("Unknown user priority: null");
+            log.error(UNKNOWN_USER_PRIORITY_NULL);
             CompletableFuture<T> nullFuture = new CompletableFuture<>();
-            nullFuture.completeExceptionally(new IllegalStateException("Unknown user priority: null"));
+            nullFuture.completeExceptionally(new IllegalStateException(UNKNOWN_USER_PRIORITY_NULL));
             return nullFuture;
         }
 
@@ -207,7 +210,7 @@ public class PriorityRequestExecutor implements AutoCloseable {
             default:
                 log.error("Unknown user priority: {}", priority);
                 CompletableFuture<T> unknownFuture = new CompletableFuture<>();
-                unknownFuture.completeExceptionally(new IllegalStateException("Unknown user priority: " + priority));
+                unknownFuture.completeExceptionally(new IllegalStateException(UNKNOWN_USER_PRIORITY_PREFIX + priority));
                 return unknownFuture;
         }
     }

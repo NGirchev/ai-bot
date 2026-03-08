@@ -20,6 +20,8 @@ public abstract class AbstractTelegramCommandHandler implements
         ICommandHandler<TelegramCommandType, TelegramCommand, Void>,
         TelegramSupportedCommandProvider {
 
+    public static final String LOG_ERROR_PROCESSING_MESSAGE = "Error processing message: {}";
+
     protected final ObjectProvider<TelegramBot> telegramBotProvider;
     protected final TypingIndicatorService typingIndicatorService;
     protected final MessageLocalizationService messageLocalizationService;
@@ -46,13 +48,13 @@ public abstract class AbstractTelegramCommandHandler implements
                 log.error("Access denied for user {}: {}", command.telegramId(), e.getMessage());
                 sendErrorMessage(command.telegramId(), messageLocalizationService.getMessage("common.error.access.denied", command.languageCode()));
             } catch (TelegramCommandHandlerException e) {
-                log.error("Error processing message: {}", e.getMessage(), e);
+                log.error(LOG_ERROR_PROCESSING_MESSAGE, e.getMessage(), e);
                 sendErrorMessage(command.telegramId(), e.getMessage());
             } catch (Exception e) {
                 if (AIUtils.shouldLogWithoutStacktrace(e)) {
-                    log.error("Error processing message: {}", AIUtils.getRootCauseMessage(e));
+                    log.error(LOG_ERROR_PROCESSING_MESSAGE, AIUtils.getRootCauseMessage(e));
                 } else {
-                    log.error("Error processing message: {}", e.getMessage(), e);
+                    log.error(LOG_ERROR_PROCESSING_MESSAGE, e.getMessage(), e);
                 }
                 sendErrorMessage(command.telegramId(), messageLocalizationService.getMessage("common.error.processing", command.languageCode()));
             }

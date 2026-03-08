@@ -3,6 +3,7 @@ package io.github.ngirchev.aibot.telegram.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.objects.User;
+import io.github.ngirchev.aibot.bulkhead.service.IUserObject;
 import io.github.ngirchev.aibot.bulkhead.service.IUserService;
 import io.github.ngirchev.aibot.common.model.AssistantRole;
 import io.github.ngirchev.aibot.common.service.AssistantRoleService;
@@ -15,13 +16,16 @@ import java.util.Optional;
 
 @RequiredArgsConstructor
 public class TelegramUserService implements IUserService {
+
+    private static final String USER_NOT_FOUND = "User not found";
+
     private final TelegramUserRepository telegramUserRepository;
     private final TelegramUserSessionService telegramUserSessionService;
     private final AssistantRoleService assistantRoleService;
 
     @Override
-    public Optional<TelegramUser> findById(Long id) {
-        return telegramUserRepository.findById(id);
+    public Optional<IUserObject> findById(Long id) {
+        return telegramUserRepository.findById(id).map(IUserObject.class::cast);
     }
 
     public Optional<TelegramUser> findByTelegramId(Long telegramId) {
@@ -54,7 +58,7 @@ public class TelegramUserService implements IUserService {
     @Transactional
     public TelegramUser updateAssistantRole(User telegramUser, String assistantRoleContent) {
         TelegramUser user = telegramUserRepository.findByTelegramId(telegramUser.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         
         String languageCode = user.getLanguageCode() != null && !user.getLanguageCode().isBlank()
                 ? user.getLanguageCode() : "en";
@@ -105,7 +109,7 @@ public class TelegramUserService implements IUserService {
         }
 
         TelegramUser managedUser = telegramUserRepository.findByTelegramId(telegramId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
 
         AssistantRole role = managedUser.getCurrentAssistantRole();
         if (role == null) {
@@ -137,7 +141,7 @@ public class TelegramUserService implements IUserService {
     @Transactional
     public TelegramUser updateLanguageCode(Long telegramId, String languageCode) {
         TelegramUser user = telegramUserRepository.findByTelegramId(telegramId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         String normalized = languageCode != null && !languageCode.isBlank()
                 ? languageCode.trim().toLowerCase().split("-")[0] : "en";
         user.setLanguageCode(normalized);

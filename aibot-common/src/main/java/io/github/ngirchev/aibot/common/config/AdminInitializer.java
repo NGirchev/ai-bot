@@ -19,6 +19,10 @@ import java.util.Optional;
 @ConditionalOnProperty(name = "ai-bot.common.admin.enabled", havingValue = "true", matchIfMissing = false)
 public class AdminInitializer {
 
+    private static final String SET_IS_ADMIN = "setIsAdmin";
+    private static final String SET_IS_PREMIUM = "setIsPremium";
+    private static final String SET_IS_BLOCKED = "setIsBlocked";
+
     private final CoreCommonProperties coreCommonProperties;
     private final ApplicationContext applicationContext;
 
@@ -67,9 +71,9 @@ public class AdminInitializer {
                 Boolean isAdmin = (Boolean) getIsAdmin.invoke(user);
                 
                 if (!Boolean.TRUE.equals(isAdmin)) {
-                    user.getClass().getMethod("setIsAdmin", Boolean.class).invoke(user, true);
-                    user.getClass().getMethod("setIsPremium", Boolean.class).invoke(user, true);
-                    user.getClass().getMethod("setIsBlocked", Boolean.class).invoke(user, false);
+                    user.getClass().getMethod(SET_IS_ADMIN, Boolean.class).invoke(user, true);
+                    user.getClass().getMethod(SET_IS_PREMIUM, Boolean.class).invoke(user, true);
+                    user.getClass().getMethod(SET_IS_BLOCKED, Boolean.class).invoke(user, false);
                     repository.getClass().getMethod("save", Object.class).invoke(repository, user);
                     log.info("Telegram user with ID {} updated to admin", telegramId);
                 } else {
@@ -80,9 +84,9 @@ public class AdminInitializer {
             Object admin = Class.forName("io.github.ngirchev.aibot.telegram.model.TelegramUser").getDeclaredConstructor().newInstance();
                 admin.getClass().getMethod("setTelegramId", Long.class).invoke(admin, telegramId);
                 admin.getClass().getMethod("setUsername", String.class).invoke(admin, "admin_" + telegramId);
-                admin.getClass().getMethod("setIsAdmin", Boolean.class).invoke(admin, true);
-                admin.getClass().getMethod("setIsPremium", Boolean.class).invoke(admin, true);
-                admin.getClass().getMethod("setIsBlocked", Boolean.class).invoke(admin, false);
+                admin.getClass().getMethod(SET_IS_ADMIN, Boolean.class).invoke(admin, true);
+                admin.getClass().getMethod(SET_IS_PREMIUM, Boolean.class).invoke(admin, true);
+                admin.getClass().getMethod(SET_IS_BLOCKED, Boolean.class).invoke(admin, false);
                 admin.getClass().getMethod("setCreatedAt", OffsetDateTime.class).invoke(admin, OffsetDateTime.now());
                 admin.getClass().getMethod("setUpdatedAt", OffsetDateTime.class).invoke(admin, OffsetDateTime.now());
                 admin.getClass().getMethod("setLastActivityAt", OffsetDateTime.class).invoke(admin, OffsetDateTime.now());
@@ -109,9 +113,9 @@ public class AdminInitializer {
                 Boolean isAdmin = (Boolean) getIsAdmin.invoke(user);
                 
                 if (!Boolean.TRUE.equals(isAdmin)) {
-                    user.getClass().getMethod("setIsAdmin", Boolean.class).invoke(user, true);
-                    user.getClass().getMethod("setIsPremium", Boolean.class).invoke(user, true);
-                    user.getClass().getMethod("setIsBlocked", Boolean.class).invoke(user, false);
+                    user.getClass().getMethod(SET_IS_ADMIN, Boolean.class).invoke(user, true);
+                    user.getClass().getMethod(SET_IS_PREMIUM, Boolean.class).invoke(user, true);
+                    user.getClass().getMethod(SET_IS_BLOCKED, Boolean.class).invoke(user, false);
                     repository.getClass().getMethod("save", Object.class).invoke(repository, user);
                     log.info("REST user with email {} updated to admin", email);
                 } else {
@@ -122,9 +126,9 @@ public class AdminInitializer {
             Object admin = Class.forName("io.github.ngirchev.aibot.rest.model.RestUser").getDeclaredConstructor().newInstance();
                 admin.getClass().getMethod("setEmail", String.class).invoke(admin, email);
                 admin.getClass().getMethod("setUsername", String.class).invoke(admin, email);
-                admin.getClass().getMethod("setIsAdmin", Boolean.class).invoke(admin, true);
-                admin.getClass().getMethod("setIsPremium", Boolean.class).invoke(admin, true);
-                admin.getClass().getMethod("setIsBlocked", Boolean.class).invoke(admin, false);
+                admin.getClass().getMethod(SET_IS_ADMIN, Boolean.class).invoke(admin, true);
+                admin.getClass().getMethod(SET_IS_PREMIUM, Boolean.class).invoke(admin, true);
+                admin.getClass().getMethod(SET_IS_BLOCKED, Boolean.class).invoke(admin, false);
                 admin.getClass().getMethod("setCreatedAt", OffsetDateTime.class).invoke(admin, OffsetDateTime.now());
                 admin.getClass().getMethod("setUpdatedAt", OffsetDateTime.class).invoke(admin, OffsetDateTime.now());
                 admin.getClass().getMethod("setLastActivityAt", OffsetDateTime.class).invoke(admin, OffsetDateTime.now());

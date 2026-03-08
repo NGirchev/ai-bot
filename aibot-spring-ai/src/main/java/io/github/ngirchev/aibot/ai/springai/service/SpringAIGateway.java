@@ -51,6 +51,7 @@ public class SpringAIGateway implements AIGateway {
     private static final String CONTENT_PART_TEXT = "text";
     private static final String CONTENT_PART_IMAGE_URL = "image_url";
     private static final String IMAGE_URL_URL = "url";
+    private static final String LOG_ERROR_CALLING_SPRING_AI = "Error calling Spring AI ChatModel: {}";
 
     private final SpringAIProperties springAiProperties;
     private final AIGatewayRegistry aiGatewayRegistry;
@@ -198,15 +199,15 @@ public class SpringAIGateway implements AIGateway {
                 throw new IllegalArgumentException();
             }
         } catch (WebClientResponseException e) {
-            log.error("Error calling Spring AI ChatModel: {}", e.getMessage());
+            log.error(LOG_ERROR_CALLING_SPRING_AI, e.getMessage());
             throw new RuntimeException("Failed to generate response from Spring AI", e);
         } catch (DocumentContentNotExtractableException e) {
             throw e;
         } catch (Exception e) {
             if (AIUtils.shouldLogWithoutStacktrace(e)) {
-                log.error("Error calling Spring AI ChatModel: {}", AIUtils.getRootCauseMessage(e));
+                log.error(LOG_ERROR_CALLING_SPRING_AI, AIUtils.getRootCauseMessage(e));
             } else {
-                log.error("Error calling Spring AI ChatModel: {}", e.getMessage(), e);
+                log.error(LOG_ERROR_CALLING_SPRING_AI, e.getMessage(), e);
             }
             throw new RuntimeException("Failed to generate response from Spring AI", e);
         }
@@ -245,15 +246,15 @@ public class SpringAIGateway implements AIGateway {
                     messages
             );
         } catch (WebClientResponseException e) {
-            log.error("Error calling Spring AI ChatModel: {}", e.getMessage());
+            log.error(LOG_ERROR_CALLING_SPRING_AI, e.getMessage());
             throw new RuntimeException("Failed to generate response from Spring AI", e);
         } catch (DocumentContentNotExtractableException e) {
             throw e;
         } catch (Exception e) {
             if (AIUtils.shouldLogWithoutStacktrace(e)) {
-                log.error("Error calling Spring AI ChatModel: {}", AIUtils.getRootCauseMessage(e));
+                log.error(LOG_ERROR_CALLING_SPRING_AI, AIUtils.getRootCauseMessage(e));
             } else {
-                log.error("Error calling Spring AI ChatModel: {}", e.getMessage(), e);
+                log.error(LOG_ERROR_CALLING_SPRING_AI, e.getMessage(), e);
             }
             throw new RuntimeException("Failed to generate response from Spring AI", e);
         }

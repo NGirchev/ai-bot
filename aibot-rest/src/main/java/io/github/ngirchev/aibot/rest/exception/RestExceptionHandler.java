@@ -23,6 +23,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RestExceptionHandler {
 
+    private static final String HEADER_ACCEPT = "Accept";
+    private static final String APPLICATION_JSON = "application/json";
+    private static final String KEY_MESSAGE = "message";
+    private static final String KEY_STATUS = "status";
+
     private final MessageLocalizationService messageLocalizationService;
 
     private String languageCode(HttpServletRequest request) {
@@ -34,9 +39,9 @@ public class RestExceptionHandler {
         log.warn("Authorization error: {} for request {}", e.getMessage(), request.getRequestURI());
         
         // Check if request is AJAX (from UI) or to UI endpoints
-        String acceptHeader = request.getHeader("Accept");
+        String acceptHeader = request.getHeader(HEADER_ACCEPT);
         String requestPath = request.getRequestURI();
-        boolean isAjaxRequest = acceptHeader != null && acceptHeader.contains("application/json");
+        boolean isAjaxRequest = acceptHeader != null && acceptHeader.contains(APPLICATION_JSON);
         boolean isUIRequest = requestPath != null && (requestPath.startsWith("/api/v1/session") || requestPath.startsWith("/api/v1/ui"));
         
         log.debug("Request path: {}, Accept: {}, isAjax: {}, isUI: {}", 
@@ -45,8 +50,8 @@ public class RestExceptionHandler {
         // For AJAX or UI requests return JSON with error info and redirect
         if (isAjaxRequest || isUIRequest) {
             Map<String, Object> response = new HashMap<>();
-            response.put("message", e.getMessage());
-            response.put("status", HttpStatus.UNAUTHORIZED.value());
+            response.put(KEY_MESSAGE, e.getMessage());
+            response.put(KEY_STATUS, HttpStatus.UNAUTHORIZED.value());
             response.put("redirect", "/login");
             log.debug("Returning JSON response with redirect for UI request");
             return ResponseEntity
