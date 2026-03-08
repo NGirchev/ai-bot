@@ -24,7 +24,7 @@ public class DefaultUserPriorityService implements IUserPriorityService {
      * Determines user priority by user id.
      * Admins always get ADMIN priority regardless of other conditions.
      * If user is blocked in Telegram - returns BLOCKED.
-     * If user has premium status - returns VIP.
+     * If user has Telegram Premium or is a member of a configured whitelist channel/group - returns VIP.
      * Otherwise - returns REGULAR.
      *
      * @param userId user identifier
@@ -56,10 +56,26 @@ public class DefaultUserPriorityService implements IUserPriorityService {
 
         if (user.map(IUserObject::getIsBlocked).map(Boolean.TRUE::equals).orElse(false)) {
             return UserPriority.BLOCKED;
-        } else if (user.map(IUserObject::getIsPremium).map(Boolean.TRUE::equals).orElse(false)) {
+        }
+        if (user.map(IUserObject::getIsPremium).map(Boolean.TRUE::equals).orElse(false)) {
             return UserPriority.VIP;
-        } else {
-            return UserPriority.REGULAR;
+        }
+        if (isUserInConfiguredChannel(userId)) {
+            return UserPriority.VIP;
+        }
+        return UserPriority.REGULAR;
+    }
+
+    /**
+     * Returns true if the user is a member of one of the configured whitelist channels/groups.
+     * Used to grant Premium (VIP) priority to channel members.
+     */
+    private boolean isUserInConfiguredChannel(Long userId) {
+        try {
+            return whitelistService.checkUserInChannel(userId);
+        } catch (Exception e) {
+            log.debug("Could not check channel membership for user {}: {}", userId, e.getMessage());
+            return false;
         }
     }
 } 

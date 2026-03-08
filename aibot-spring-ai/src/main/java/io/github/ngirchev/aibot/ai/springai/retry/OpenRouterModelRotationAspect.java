@@ -121,6 +121,17 @@ public class OpenRouterModelRotationAspect {
             });
             return response;
         } catch (Throwable t) {
+            long latencyMs = 0L;
+            boolean retryable = isRetryable(t);
+            log.warn("OpenRouter stream retry: sync error. model={}, retryable={}, attempt={} of {}, reason={}",
+                    modelId, retryable, index + 1, candidates.size(), t.getMessage());
+            recordFailureIfPossible(modelId, t, latencyMs);
+            if (retryable && index + 1 < candidates.size()) {
+                String nextModel = candidates.get(index + 1).getName();
+                log.warn("OpenRouter stream retry: switching from model={} to next candidate model={} (attempt {} of {}). reason={}",
+                        modelId, nextModel, index + 2, candidates.size(), t.getMessage());
+                return streamWithRetry(pjp, baseArgs, candidates, index + 1);
+            }
             return new SpringAIStreamResponse(Flux.error(t));
         }
     }

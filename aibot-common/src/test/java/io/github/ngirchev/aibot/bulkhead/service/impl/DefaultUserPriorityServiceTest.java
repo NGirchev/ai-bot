@@ -83,9 +83,10 @@ class DefaultUserPriorityServiceTest {
 
     @Test
     void whenUserInWhitelist_andRegular_thenReturnRegular() {
-        // Arrange
+        // Arrange: in whitelist, not premium, not in configured channel
         Long userId = 7L;
         when(whitelistService.isUserAllowed(userId)).thenReturn(true);
+        when(whitelistService.checkUserInChannel(userId)).thenReturn(false);
         when(telegramUserService.findById(userId)).thenReturn(Optional.empty());
 
         // Act
@@ -98,8 +99,8 @@ class DefaultUserPriorityServiceTest {
     }
 
     @Test
-    void whenUserNotInWhitelist_butInChannel_thenAddToWhitelist_andReturnRegular() {
-        // Arrange
+    void whenUserNotInWhitelist_butInChannel_thenAddToWhitelist_andReturnVip() {
+        // Arrange: user gets access via channel, then receives Premium (VIP) as channel member
         Long userId = 7L;
         IUserObject mockUser = mock(IUserObject.class);
         when(mockUser.getIsAdmin()).thenReturn(false);
@@ -113,9 +114,9 @@ class DefaultUserPriorityServiceTest {
         UserPriority result = userPriorityService.getUserPriority(userId);
 
         // Assert
-        assertEquals(UserPriority.REGULAR, result);
+        assertEquals(UserPriority.VIP, result);
         verify(whitelistService).isUserAllowed(userId);
-        verify(whitelistService).checkUserInChannel(userId);
+        verify(whitelistService, atLeast(1)).checkUserInChannel(userId);
         verify(whitelistService).addToWhitelist(userId);
         verify(telegramUserService).findById(userId);
     }
@@ -139,6 +140,28 @@ class DefaultUserPriorityServiceTest {
         verify(telegramUserService).findById(userId);
         verify(mockUser).getIsAdmin();
         verify(mockUser).getIsPremium();
+    }
+
+    @Test
+    void whenUserInWhitelist_andInChannel_butNotPremium_thenReturnVip() {
+        // Arrange: channel/group members get Premium (VIP) even without Telegram Premium
+        Long userId = 7L;
+        IUserObject mockUser = mock(IUserObject.class);
+        when(mockUser.getIsAdmin()).thenReturn(false);
+        when(mockUser.getIsBlocked()).thenReturn(false);
+        when(mockUser.getIsPremium()).thenReturn(false);
+        when(whitelistService.isUserAllowed(userId)).thenReturn(true);
+        when(whitelistService.checkUserInChannel(userId)).thenReturn(true);
+        doReturn(Optional.of(mockUser)).when(telegramUserService).findById(userId);
+
+        // Act
+        UserPriority result = userPriorityService.getUserPriority(userId);
+
+        // Assert
+        assertEquals(UserPriority.VIP, result);
+        verify(whitelistService).isUserAllowed(userId);
+        verify(whitelistService).checkUserInChannel(userId);
+        verify(telegramUserService).findById(userId);
     }
 
     @Test
