@@ -1,6 +1,4 @@
-# This workflow will build a Java project with Maven, run tests with JaCoCo, and run SonarCloud analysis.
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
-
+# Build, test, and SonarCloud analysis (Sonar via Maven plugin as recommended by SonarCloud).
 name: Java CI with Maven
 
 on:
@@ -11,13 +9,12 @@ on:
 
 jobs:
   build:
-
+    name: Build and analyze
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Required for SonarCloud to compute issue relevancy
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -26,14 +23,14 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and test with JaCoCo
-        run: mvn -B clean test jacoco:report --file pom.xml
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
 
-      - name: SonarCloud analysis
-        uses: SonarSource/sonarcloud-github-action@v3
+      - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=NGirchev_ai-bot
-            -Dsonar.organization=ngirchev
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=NGirchev_ai-bot -Dsonar.organization=ngirchev

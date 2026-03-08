@@ -1,6 +1,19 @@
 # AI Bot
 
 [![Build Status](https://github.com/NGirchev/ai-bot/actions/workflows/maven.yml/badge.svg)](https://github.com/NGirchev/ai-bot/actions)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/aibot-parent)](https://central.sonatype.com/namespace/io.github.ngirchev)
+[![Codacy Badge](https://img.shields.io/badge/Codacy-Add%20project-2496ED?logo=codacy)](https://app.codacy.com/)
+[![OpenSSF Best Practices](https://api.securityscorecards.dev/projects/github.com/NGirchev/ai-bot/badge)](https://securityscorecards.dev/viewer/?uri=github.com/NGirchev/ai-bot)
+[![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=alert_status)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=ncloc)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Maintainability](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Code Smells](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=code_smells)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Security](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=security_rating)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Bugs](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=bugs)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Duplicated Lines](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Reliability](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+[![SonarCloud Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_ai-bot&metric=sqale_index)](https://sonarcloud.io/summary/new_code?project=NGirchev_ai-bot)
+
 [![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot 3.3.3](https://img.shields.io/badge/Spring%20Boot-3.3.3-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/github/license/NGirchev/ai-bot)](https://github.com/NGirchev/ai-bot/blob/master/LICENSE)
