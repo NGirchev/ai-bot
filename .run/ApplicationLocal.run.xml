@@ -8,7 +8,7 @@
     <shortenClasspath name="ARGS_FILE" />
     <extension name="coverage">
       <pattern>
-        <option name="PATTERN" value="ru.girchev.aibot.test.*" />
+        <option name="PATTERN" value="io.github.ngirchev.aibot.test.*" />
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>

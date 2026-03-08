@@ -79,8 +79,12 @@ class SpringAIOllamaDnsIT {
     @Autowired
     private OllamaChatModel ollamaChatModel;
 
+    /**
+     * Manual test: run locally with Ollama to see streaming output in console.
+     * Disabled in CI; remove @Disabled for a local run.
+     */
     @Test
-    @Disabled
+    @Disabled("Manual test: run locally to verify streaming to console")
     void testStreamToConsole() {
         // Note: chunk size in streaming is not configurable via Ollama params;
         // num_batch does not affect stream chunk size; num_predict limits tokens (we skip it to avoid cutting generation)
@@ -88,7 +92,7 @@ class SpringAIOllamaDnsIT {
                 .user("Write a short tale")
                 .stream()
                 .chatResponse();
-        AIUtils.processStreamingResponse(responseFlux, text -> {
+        ChatResponse response = AIUtils.processStreamingResponse(responseFlux, text -> {
             try {
                 System.out.write(text.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
@@ -96,16 +100,22 @@ class SpringAIOllamaDnsIT {
             }
             System.out.flush();
         });
+        assertNotNull(response);
+        assertNotNull(response.getResult());
+        assertNotNull(response.getResult().getOutput());
+        String text = response.getResult().getOutput().getText();
+        assertNotNull(text);
+        assertFalse(text.isEmpty());
     }
 
+    /**
+     * Manual test: run locally with Ollama to see paragraph-by-paragraph streaming in console.
+     * Disabled in CI; remove @Disabled for a local run.
+     */
     @Test
-    @Disabled
+    @Disabled("Manual test: run locally to verify streaming by paragraphs to console")
     void testStreamParagraphToConsole() {
         // Note: chunk size in streaming is not configurable via Ollama params
-//        System.out.println("Sentence:\n" + ChatClient.builder(ollamaChatModel).build().prompt()
-//                .user("Write a short tale").call().chatResponse().getResult().getOutput().getText());
-
-
         var responseFlux = ChatClient.builder(ollamaChatModel).build().prompt()
                 .user("Write a short tale")
                 .stream()
@@ -118,7 +128,13 @@ class SpringAIOllamaDnsIT {
             }
             System.out.flush();
         });
-        System.out.println("\nSentence:\n\n" + chatResponse.getResults().getFirst().getOutput().getText());
+        assertNotNull(chatResponse);
+        assertFalse(chatResponse.getResults().isEmpty());
+        assertNotNull(chatResponse.getResults().getFirst().getOutput());
+        String text = chatResponse.getResults().getFirst().getOutput().getText();
+        assertNotNull(text);
+        assertFalse(text.isEmpty());
+        System.out.println("\nSentence:\n\n" + text);
     }
 
     /**

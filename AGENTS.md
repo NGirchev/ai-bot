@@ -661,13 +661,22 @@ ai-bot:
 
 ## Environment variables
 
-Required for local development (create a `.env` file or export):
+Required for local development (create a `.env` file or export). Docker Compose reads `.env`; for Maven (e.g. `flyway:migrate`) export these or source `.env` before running:
 ```bash
 TELEGRAM_USERNAME=your_bot_username
 TELEGRAM_TOKEN=your_telegram_bot_token
 OPENROUTER_KEY=your_openrouter_api_key
 DEEPSEEK_KEY=your_deepseek_api_key
+# Database (same as docker-compose postgres service; required for flyway:migrate)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=ai_bot
+POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_secure_password
+
+# SonarQube (optional; for Cursor MCP in .cursor/mcp.json — set in .env and ensure Cursor is started with that env, e.g. from a terminal that sourced .env)
+# SONARQUBE_TOKEN=...
+# SONARQUBE_ORG=your_org
 ```
 
 ## Adding a new AI provider

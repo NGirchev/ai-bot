@@ -27,7 +27,7 @@
         <module>aibot-app</module>
     </modules>
 
-    <name>AI Bot Router</name>
+    <name>AI Bot</name>
     <description>Multi-module Java project for AI services via Telegram, REST API, Web UI</description>
     <url>https://github.com/NGirchev/ai-bot</url>
 
@@ -249,15 +249,16 @@
                     </configuration>
                 </plugin>
 
-                <!-- Flyway Maven Plugin -->
+                <!-- Flyway Maven Plugin: use same env vars as docker-compose (POSTGRES_*).
+                     For local run: set POSTGRES_HOST=localhost, POSTGRES_PORT=5432, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD (e.g. in .env). -->
                 <plugin>
                     <groupId>org.flywaydb</groupId>
                     <artifactId>flyway-maven-plugin</artifactId>
                     <version>${flyway.version}</version>
                     <configuration>
-                        <url>jdbc:postgresql://localhost:5432/ai_bot</url>
-                        <user>postgres</user>
-                        <password>postgres</password>
+                        <url>jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/${env.POSTGRES_DB}</url>
+                        <user>${env.POSTGRES_USER}</user>
+                        <password>${env.POSTGRES_PASSWORD}</password>
                         <locations>
                             <location>classpath:db/migration</location>
                         </locations>

@@ -29,7 +29,7 @@ public class MockGateway implements AIGateway {
     );
 
     private final AIGatewayRegistry aiGatewayRegistry;
-    private final Random random = new Random();
+    private final Random random = new Random(); // NOSONAR - not used for security, only for random mock response
 
     @PostConstruct
     public void init() {
