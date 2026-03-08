@@ -221,6 +221,35 @@ class ConversationThreadServiceTest {
     }
 
     @Test
+    void whenUpdateThreadCounters_andCountByThreadReturnsNull_thenUseZeroForMessageCount() {
+        User user = createTestUser();
+        ConversationThread thread = createThread(user, true, OffsetDateTime.now());
+
+        when(messageRepository.countByThread(thread)).thenReturn(null);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread)).thenReturn(List.of());
+        when(threadRepository.save(any(ConversationThread.class))).thenReturn(thread);
+
+        threadService.updateThreadCounters(thread);
+
+        assertEquals(0, thread.getTotalMessages());
+        assertEquals(0L, thread.getTotalTokens());
+    }
+
+    @Test
+    void whenGetOrCreateThread_andExistingThreadHasNullLastActivity_thenReturnExisting() {
+        User user = createTestUser();
+        ConversationThread existingThread = createThread(user, true, null);
+
+        when(threadRepository.findMostRecentActiveThread(user)).thenReturn(Optional.of(existingThread));
+
+        ConversationThread result = threadService.getOrCreateThread(user);
+
+        assertNotNull(result);
+        assertEquals(existingThread.getThreadKey(), result.getThreadKey());
+        verify(threadRepository, never()).save(any());
+    }
+
+    @Test
     void whenCloseThread_thenThreadIsClosed() {
         // Arrange
         User user = createTestUser();

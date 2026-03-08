@@ -103,42 +103,43 @@ class PriorityRequestExecutorTest {
     }
 
     @Test
-    void whenVipUserAsync_thenExecuteInVipBulkhead() {
-        // Arrange
+    void whenVipUserAsync_thenExecuteInVipBulkhead() throws Exception {
         Long userId = 1L;
         when(userPriorityService.getUserPriority(userId)).thenReturn(UserPriority.VIP);
         Supplier<String> task = () -> "VIP result";
 
-        // Act
         CompletableFuture<String> future = requestExecutor.executeRequestAsync(userId, task)
                 .toCompletableFuture();
 
-        // Assert
-        assertDoesNotThrow(() -> {
-            String result = future.get();
-            assertEquals("VIP result", result);
-        });
+        assertEquals("VIP result", future.get());
         verify(userPriorityService).getUserPriority(userId);
     }
 
     @Test
-    void whenAdminUserAsync_thenExecuteInAdminBulkhead() {
-        // Arrange
+    void whenAdminUserAsync_thenExecuteInAdminBulkhead() throws Exception {
         Long userId = 10L;
         when(userPriorityService.getUserPriority(userId)).thenReturn(UserPriority.ADMIN);
         Supplier<String> task = () -> "Admin result";
 
-        // Act
         CompletableFuture<String> future = requestExecutor.executeRequestAsync(userId, task)
                 .toCompletableFuture();
 
-        // Assert
-        assertDoesNotThrow(() -> {
-            String result = future.get();
-            assertEquals("Admin result", result);
-        });
+        assertEquals("Admin result", future.get());
         verify(userPriorityService).getUserPriority(userId);
     }
+    @Test
+    void whenRegularUserAsync_thenExecuteInRegularBulkhead() throws Exception {
+        Long userId = 2L;
+        when(userPriorityService.getUserPriority(userId)).thenReturn(UserPriority.REGULAR);
+        Supplier<String> task = () -> "Regular async result";
+
+        CompletableFuture<String> future = requestExecutor.executeRequestAsync(userId, task)
+                .toCompletableFuture();
+
+        assertEquals("Regular async result", future.get());
+        verify(userPriorityService).getUserPriority(userId);
+    }
+
     @Test
     void whenBlockedUserAsync_thenCompleteFutureExceptionally() {
         // Arrange
@@ -159,36 +160,14 @@ class PriorityRequestExecutorTest {
 
     @Test
     void whenNullPriority_thenThrowIllegalStateException() {
-        // Arrange
         Long userId = 4L;
         when(userPriorityService.getUserPriority(userId)).thenReturn(null);
         Callable<String> task = () -> "Should not execute";
 
-        // Act & Assert
-        assertThrows(IllegalStateException.class,
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> requestExecutor.executeRequest(userId, task));
+        assertTrue(ex.getMessage().contains("Unknown user priority"));
         verify(userPriorityService).getUserPriority(userId);
-    }
-
-    @Test
-    void testBulkheadInitialization() {
-        // Verify bulkheads are initialized correctly
-        assertNotNull(requestExecutor, "RequestExecutor must not be null");
-        
-        // Verify init() was called in setUp()
-        // Check indirectly via executeRequest call
-        Long userId = 1L;
-        String expectedResult = "Test";
-        Callable<String> task = () -> expectedResult;
-        
-        when(userPriorityService.getUserPriority(userId)).thenReturn(UserPriority.REGULAR);
-        
-        try {
-            String result = requestExecutor.executeRequest(userId, task);
-            assertEquals(expectedResult, result, "Task should complete after initialization");
-        } catch (Exception e) {
-            fail("No exception expected when executing task: " + e.getMessage());
-        }
     }
 
     @Test
@@ -228,25 +207,6 @@ class PriorityRequestExecutorTest {
     }
 
     @Test
-    void testExecuteRequest_UnknownPriority_ShouldThrowIllegalStateException() {
-        // Arrange
-        Long userId = 5L;
-        Callable<String> task = () -> "This result should not be returned";
-        
-        // Simulate null instead of concrete priority
-        when(userPriorityService.getUserPriority(userId)).thenReturn(null);
-
-        // Act & Assert
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            requestExecutor.executeRequest(userId, task);
-        }, "IllegalStateException expected for unknown priority");
-        
-        assertTrue(exception.getMessage().contains("Unknown user priority"),
-                "Error message must contain unknown priority info");
-        verify(userPriorityService).getUserPriority(userId);
-    }
-
-    @Test
     void testExecuteRequestAsync_UnknownPriority_ShouldCompleteExceptionally() {
         // Arrange
         Long userId = 5L;
@@ -268,5 +228,19 @@ class PriorityRequestExecutorTest {
         assertTrue(exception.getCause().getMessage().contains("Unknown user priority"),
                 "Error message must contain unknown priority info");
         verify(userPriorityService).getUserPriority(userId);
+    }
+
+    @Test
+    void whenTaskThrows_thenExceptionIsPropagated() {
+        Long userId = 1L;
+        when(userPriorityService.getUserPriority(userId)).thenReturn(UserPriority.VIP);
+        Callable<String> task = () -> {
+            throw new IllegalArgumentException("Task failed");
+        };
+
+        Exception ex = assertThrows(IllegalArgumentException.class, () ->
+                requestExecutor.executeRequest(userId, task));
+
+        assertEquals("Task failed", ex.getMessage());
     }
 } 

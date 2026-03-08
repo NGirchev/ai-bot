@@ -432,5 +432,209 @@ class ConversationContextPropertiesBuilderServiceTest {
         assertNotNull(result);
         assertEquals(0, result.size());
     }
+
+    @Test
+    void whenAttachmentHasInvalidExpiresAt_thenContentIsPlainText() {
+        ConversationThread thread = createEmptyThread();
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Next";
+
+        AIBotMessage userMsgWithAttachment = createUserMessage("Photo");
+        Map<String, Object> ref = new HashMap<>();
+        ref.put("storageKey", "photo/key.jpg");
+        ref.put("expiresAt", "not-a-valid-date");
+        ref.put("mimeType", "image/jpeg");
+        userMsgWithAttachment.setAttachments(List.of(ref));
+
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(any())).thenReturn(List.of(userMsgWithAttachment));
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(5);
+        when(fileStorageServiceProvider.getIfAvailable()).thenReturn(mock(FileStorageService.class));
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        Object historyContent = result.stream()
+                .filter(m -> "user".equals(m.get("role")))
+                .findFirst()
+                .map(m -> m.get("content"))
+                .orElse(null);
+        assertEquals("Photo", historyContent);
+    }
+
+    @Test
+    void whenStorageGetThrows_thenContentIsPlainText() {
+        ConversationThread thread = createEmptyThread();
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Next";
+
+        AIBotMessage userMsgWithAttachment = createUserMessage("Broken image");
+        Map<String, Object> ref = new HashMap<>();
+        ref.put("storageKey", "photo/key.jpg");
+        ref.put("expiresAt", OffsetDateTime.now().plusHours(1).toString());
+        ref.put("mimeType", "image/jpeg");
+        userMsgWithAttachment.setAttachments(List.of(ref));
+
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(any())).thenReturn(List.of(userMsgWithAttachment));
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(5);
+
+        FileStorageService fileStorage = mock(FileStorageService.class);
+        when(fileStorage.get("photo/key.jpg")).thenThrow(new RuntimeException("Storage error"));
+        when(fileStorageServiceProvider.getIfAvailable()).thenReturn(fileStorage);
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        Object historyContent = result.stream()
+                .filter(m -> "user".equals(m.get("role")))
+                .findFirst()
+                .map(m -> m.get("content"))
+                .orElse(null);
+        assertEquals("Broken image", historyContent);
+    }
+
+    @Test
+    void whenAttachmentIsNonImage_thenContentIsPlainText() {
+        ConversationThread thread = createEmptyThread();
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Next";
+
+        AIBotMessage userMsgWithAttachment = createUserMessage("PDF attached");
+        Map<String, Object> ref = new HashMap<>();
+        ref.put("storageKey", "doc/file.pdf");
+        ref.put("expiresAt", OffsetDateTime.now().plusHours(1).toString());
+        ref.put("mimeType", "application/pdf");
+        userMsgWithAttachment.setAttachments(List.of(ref));
+
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(any())).thenReturn(List.of(userMsgWithAttachment));
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(5);
+        when(fileStorageServiceProvider.getIfAvailable()).thenReturn(mock(FileStorageService.class));
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        Object historyContent = result.stream()
+                .filter(m -> "user".equals(m.get("role")))
+                .findFirst()
+                .map(m -> m.get("content"))
+                .orElse(null);
+        assertEquals("PDF attached", historyContent);
+    }
+
+    @Test
+    void whenMessageHasEmptyContent_thenEntrySkipped() {
+        ConversationThread thread = createEmptyThread();
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Hi";
+
+        AIBotMessage userMsgEmpty = createUserMessage("");
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread)).thenReturn(List.of(userMsgEmpty));
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(1);
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        assertEquals(1, result.size());
+        assertEquals("system", result.get(0).get("role"));
+    }
+
+    @Test
+    void whenAttachmentRefHasBlankStorageKey_thenContentIsPlainText() {
+        ConversationThread thread = createEmptyThread();
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Next";
+
+        AIBotMessage userMsgWithAttachment = createUserMessage("Photo");
+        Map<String, Object> ref = new HashMap<>();
+        ref.put("storageKey", "   ");
+        ref.put("expiresAt", OffsetDateTime.now().plusHours(1).toString());
+        ref.put("mimeType", "image/jpeg");
+        userMsgWithAttachment.setAttachments(List.of(ref));
+
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(any())).thenReturn(List.of(userMsgWithAttachment));
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(5);
+        when(fileStorageServiceProvider.getIfAvailable()).thenReturn(mock(FileStorageService.class));
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        Object historyContent = result.stream()
+                .filter(m -> "user".equals(m.get("role")))
+                .findFirst()
+                .map(m -> m.get("content"))
+                .orElse(null);
+        assertEquals("Photo", historyContent);
+    }
+
+    @Test
+    void whenAttachmentRefHasNullExpiresAt_thenContentIsPlainText() {
+        ConversationThread thread = createEmptyThread();
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Next";
+
+        AIBotMessage userMsgWithAttachment = createUserMessage("Photo");
+        Map<String, Object> ref = new HashMap<>();
+        ref.put("storageKey", "photo/key.jpg");
+        ref.put("expiresAt", null);
+        ref.put("mimeType", "image/jpeg");
+        userMsgWithAttachment.setAttachments(List.of(ref));
+
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(any())).thenReturn(List.of(userMsgWithAttachment));
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(5);
+        when(fileStorageServiceProvider.getIfAvailable()).thenReturn(mock(FileStorageService.class));
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        Object historyContent = result.stream()
+                .filter(m -> "user".equals(m.get("role")))
+                .findFirst()
+                .map(m -> m.get("content"))
+                .orElse(null);
+        assertEquals("Photo", historyContent);
+    }
+
+    @Test
+    void whenSummaryWithEmptyMemoryBullets_thenSummaryWithoutKeyPoints() {
+        ConversationThread thread = createEmptyThread();
+        thread.setSummary("Short summary");
+        thread.setMemoryBullets(new ArrayList<>());
+        AssistantRole assistantRole = createAssistantRole("You are a helpful assistant.");
+        String currentMessage = "Hi";
+
+        when(historyConfig.getIncludeSystemPrompt()).thenReturn(true);
+        when(historyConfig.getMaxResponseTokens()).thenReturn(4000);
+        when(coreCommonProperties.getMaxTotalPromptTokens()).thenReturn(32000);
+        when(messageRepository.findByThreadOrderBySequenceNumberAsc(any())).thenReturn(new ArrayList<>());
+        when(tokenCounter.estimateTokens("You are a helpful assistant.")).thenReturn(10);
+        when(tokenCounter.estimateTokens(anyString())).thenReturn(5);
+        when(tokenCounter.estimateTokens(currentMessage)).thenReturn(2);
+
+        List<Map<String, Object>> result = conversationContextBuilderService.buildContext(
+                thread, currentMessage, assistantRole);
+
+        boolean hasSummaryNoBullets = result.stream()
+                .anyMatch(m -> m.get("content") instanceof String s
+                        && s.contains("Summary of previous conversation")
+                        && !s.contains("Key points:"));
+        assertTrue(hasSummaryNoBullets);
+    }
 }
 

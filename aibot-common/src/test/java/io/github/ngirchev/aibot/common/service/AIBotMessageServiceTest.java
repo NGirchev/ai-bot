@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import io.github.ngirchev.aibot.common.exception.UserMessageTooLongException;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -288,6 +290,44 @@ class AIBotMessageServiceTest {
         assertTrue(savedMessage.getTokenCount() > 0, 
                 "tokenCount must be > 0 for long message");
         
+        verify(messageRepository).save(any(AIBotMessage.class));
+    }
+
+    @Test
+    void whenSaveUserMessageExceedsTokenLimit_thenThrowsUserMessageTooLongException() {
+        doReturn(2).when(coreCommonProperties).getMaxUserMessageTokens();
+        when(manualHistoryProperties.getTokenEstimationCharsPerToken()).thenReturn(1);
+        TokenCounter strictCounter = new TokenCounter(coreCommonProperties);
+        messageService = new AIBotMessageService(
+                messageRepository,
+                conversationThreadService,
+                assistantRoleService,
+                coreCommonProperties,
+                strictCounter,
+                messageServiceSelfProvider
+        );
+        when(messageServiceSelfProvider.getObject()).thenReturn(messageService);
+
+        String longContent = "This message has more than two tokens";
+
+        UserMessageTooLongException ex = assertThrows(UserMessageTooLongException.class, () ->
+                messageService.saveUserMessage(user, longContent, RequestType.TEXT, assistantRole, null));
+
+        assertTrue(ex.getEstimatedTokens() > 2);
+        assertEquals(2, ex.getMaxAllowed());
+        verify(messageRepository, never()).save(any());
+    }
+
+    @Test
+    void whenSaveUserMessageWithAssistantRoleContent_thenResolvesRoleAndSaves() {
+        when(coreCommonProperties.getAssistantRole()).thenReturn("Default system prompt");
+        when(assistantRoleService.getOrCreateDefaultRole(user, "Custom role")).thenReturn(assistantRole);
+
+        AIBotMessage saved = messageService.saveUserMessage(
+                user, "Hello", RequestType.TEXT, "Custom role", null);
+
+        assertNotNull(saved);
+        verify(assistantRoleService).getOrCreateDefaultRole(user, "Custom role");
         verify(messageRepository).save(any(AIBotMessage.class));
     }
 }

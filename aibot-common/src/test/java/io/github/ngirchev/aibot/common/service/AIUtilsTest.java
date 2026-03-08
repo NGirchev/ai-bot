@@ -3,6 +3,7 @@ package io.github.ngirchev.aibot.common.service;
 import io.github.ngirchev.aibot.common.ai.AIGateways;
 import io.github.ngirchev.aibot.common.ai.response.MapResponse;
 import io.github.ngirchev.aibot.common.ai.response.SpringAIResponse;
+import io.github.ngirchev.aibot.common.ai.response.SpringAIStreamResponse;
 import io.github.ngirchev.aibot.common.exception.DocumentContentNotExtractableException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -12,6 +13,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,7 @@ import java.util.Optional;
 
 import static io.github.ngirchev.aibot.common.ai.LlmParamNames.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class AIUtilsTest {
 
@@ -601,6 +604,123 @@ class AIUtilsTest {
         RuntimeException e = new RuntimeException();
         assertNotNull(AIUtils.getRootCauseMessage(e));
         assertTrue(AIUtils.getRootCauseMessage(e).contains("RuntimeException"));
+    }
+
+    // --- SpringAIStreamResponse branches (UnsupportedOperationException) ---
+    @Test
+    void retrieveMessage_springAIStreamResponseThrowsUnsupportedOperationException() {
+        SpringAIStreamResponse streamResponse = new SpringAIStreamResponse(Flux.empty());
+        assertThrows(UnsupportedOperationException.class, () -> AIUtils.retrieveMessage(streamResponse));
+    }
+
+    @Test
+    void extractUsefulData_springAIStreamResponseThrowsUnsupportedOperationException() {
+        SpringAIStreamResponse streamResponse = new SpringAIStreamResponse(Flux.empty());
+        assertThrows(UnsupportedOperationException.class, () -> AIUtils.extractUsefulData(streamResponse));
+    }
+
+    @Test
+    void extractError_springAIStreamResponseThrowsUnsupportedOperationException() {
+        SpringAIStreamResponse streamResponse = new SpringAIStreamResponse(Flux.empty());
+        assertThrows(UnsupportedOperationException.class, () -> AIUtils.extractError(streamResponse));
+    }
+
+    // --- extractSpringAiUsefulData catch branch ---
+    @Test
+    void extractSpringAiUsefulData_whenMetadataThrows_returnsNull() {
+        ChatResponse mockResponse = mock(ChatResponse.class);
+        when(mockResponse.getMetadata()).thenThrow(new RuntimeException("test error"));
+        assertNull(AIUtils.extractSpringAiUsefulData(mockResponse));
+    }
+
+    // --- getEmptyContentReasonText function_call and tool_calls ---
+    @Test
+    void getEmptyContentReasonText_functionCallReturnsFunctionCallMessage() {
+        String msg = AIUtils.getEmptyContentReasonText("function_call");
+        assertTrue(msg.contains("function call") && msg.contains("function_call"));
+    }
+
+    @Test
+    void getEmptyContentReasonText_toolCallsReturnsToolCallsMessage() {
+        String msg = AIUtils.getEmptyContentReasonText("tool_calls");
+        assertTrue(msg.contains("tool calls") && msg.contains("tool_calls"));
+    }
+
+    // --- convertMarkdownToHtml italic and strikethrough ---
+    @Test
+    void convertMarkdownToHtml_italic() {
+        assertEquals("<i>italic</i>", AIUtils.convertMarkdownToHtml("*italic*"));
+    }
+
+    @Test
+    void convertMarkdownToHtml_strikethrough() {
+        assertEquals("<s>strike</s>", AIUtils.convertMarkdownToHtml("~~strike~~"));
+    }
+
+    // --- extractError(ChatResponse) catch branch ---
+    @Test
+    void extractError_chatResponseWhenGetResultThrows_returnsFailedToExtractMessage() {
+        ChatResponse mockResponse = mock(ChatResponse.class);
+        when(mockResponse.getResult()).thenThrow(new RuntimeException("extract failed"));
+        Optional<String> err = AIUtils.extractError(mockResponse);
+        assertTrue(err.isPresent());
+        assertTrue(err.get().startsWith("Failed to extract error from response:"));
+        assertTrue(err.get().contains("extract failed"));
+    }
+
+    // --- processStreamingResponse with Duration overload ---
+    @Test
+    void processStreamingResponse_withDuration() {
+        Flux<ChatResponse> flux = Flux.just(createChatResponse("Hi"));
+        List<String> received = new ArrayList<>();
+        ChatResponse result = AIUtils.processStreamingResponse(flux, received::add, Duration.ofSeconds(30));
+        assertNotNull(result);
+        assertEquals("Hi", result.getResult().getOutput().getText().trim());
+    }
+
+    // --- processStreamingResponseByParagraphs overloads with Duration and maxMessageLength ---
+    @Test
+    void processStreamingResponseByParagraphs_withDuration() {
+        Flux<ChatResponse> flux = Flux.just(createChatResponse("Paragraph one.\n\nParagraph two."));
+        List<String> received = new ArrayList<>();
+        ChatResponse result = AIUtils.processStreamingResponseByParagraphs(flux, received::add, Duration.ofSeconds(30));
+        assertNotNull(result);
+        assertTrue(received.size() >= 1);
+    }
+
+    @Test
+    void processStreamingResponseByParagraphs_withMaxMessageLengthAndListener() {
+        Flux<ChatResponse> flux = Flux.just(createChatResponse("Short text."));
+        List<String> received = new ArrayList<>();
+        ChatResponse result = AIUtils.processStreamingResponseByParagraphs(flux, 4096, received::add);
+        assertNotNull(result);
+        assertEquals(1, received.size());
+        assertEquals("Short text.", received.getFirst());
+    }
+
+    // --- extractUsefulData(Map) edge cases: usage not Map, finish_reason in root, no useful data ---
+    @Test
+    void extractUsefulData_mapWhenUsageNotMap_returnsNullOrEmptyUsage() {
+        Map<String, Object> response = Map.of(USAGE, "not-a-map", MODEL, "gpt-4", CHOICES, List.of(Map.of()));
+        Map<String, Object> result = AIUtils.extractUsefulData(response);
+        assertNotNull(result);
+        assertTrue(result.containsKey(ACTUAL_MODEL));
+        assertFalse(result.containsKey(PROMPT_TOKENS));
+    }
+
+    @Test
+    void extractUsefulData_mapWithFinishReasonInRoot_returnsMap() {
+        Map<String, Object> response = Map.of(FINISH_REASON, "stop", CHOICES, List.of(Map.of()));
+        Map<String, Object> result = AIUtils.extractUsefulData(response);
+        assertNotNull(result);
+        assertEquals("stop", result.get(FINISH_REASON));
+    }
+
+    @Test
+    void extractUsefulData_mapWithNoUsefulData_returnsNull() {
+        Map<String, Object> response = Map.of(CHOICES, List.of(Map.of()));
+        Map<String, Object> result = AIUtils.extractUsefulData(response);
+        assertNull(result);
     }
 
     /**

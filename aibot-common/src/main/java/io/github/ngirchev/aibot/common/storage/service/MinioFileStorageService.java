@@ -32,6 +32,14 @@ public class MinioFileStorageService implements FileStorageService {
     }
 
     /**
+     * Constructor for testing with injected MinioClient (skips bucket init).
+     */
+    public MinioFileStorageService(MinioClient minioClient, String bucket) {
+        this.minioClient = minioClient;
+        this.bucket = bucket;
+    }
+
+    /**
      * Initializes bucket if it does not exist.
      */
     private void initializeBucket() {

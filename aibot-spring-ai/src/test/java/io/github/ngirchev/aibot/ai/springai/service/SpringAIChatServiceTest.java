@@ -13,13 +13,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -31,7 +30,6 @@ import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class SpringAIChatServiceTest {
 
     @Mock
@@ -45,7 +43,6 @@ class SpringAIChatServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(openRouterStreamMetricsTrackerProvider.getIfAvailable()).thenReturn(null);
         chatService = new SpringAIChatService(promptFactory, openRouterStreamMetricsTrackerProvider);
         modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
@@ -112,6 +109,7 @@ class SpringAIChatServiceTest {
 
     @Test
     void streamChat_returnsSpringAIStreamResponse() {
+        when(openRouterStreamMetricsTrackerProvider.getIfAvailable()).thenReturn(null);
         ChatResponse chunk = ChatResponse.builder()
                 .generations(List.of(new Generation(new AssistantMessage("chunk"))))
                 .build();
@@ -142,5 +140,49 @@ class SpringAIChatServiceTest {
         ChatResponse first = responseFlux.blockFirst();
         assertNotNull(first);
         assertEquals("chunk", first.getResult().getOutput().getText());
+    }
+
+    @Test
+    void callChatFromBody_modelFromOptionsMap_usesOptionsModel() {
+        ChatResponse mockResponse = ChatResponse.builder()
+                .generations(List.of(new Generation(new AssistantMessage("From options model"))))
+                .build();
+        org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec requestSpec =
+                mock(org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec.class, RETURNS_DEEP_STUBS);
+        when(requestSpec.call().chatResponse()).thenReturn(mockResponse);
+        SpringAIModelConfig configWithNullName = new SpringAIModelConfig();
+        configWithNullName.setName(null);
+        configWithNullName.setCapabilities(List.of(ModelCapabilities.CHAT));
+        configWithNullName.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
+        when(promptFactory.preparePrompt(
+                eq(configWithNullName),
+                eq("options-model-name"),
+                any(),
+                any(),
+                anyBoolean(),
+                any(),
+                isNull())).thenReturn(requestSpec);
+        Map<String, Object> options = Map.of("model", "options-model-name");
+        Map<String, Object> body = Map.of("options", options, "messages", List.<Map<String, Object>>of());
+        AIResponse response = chatService.callChatFromBody(configWithNullName, body, null, false, List.of());
+        assertNotNull(response);
+        assertEquals("From options model", ((SpringAIResponse) response).chatResponse().getResult().getOutput().getText());
+        verify(promptFactory).preparePrompt(eq(configWithNullName), eq("options-model-name"), eq(body), any(), anyBoolean(), any(), isNull());
+    }
+
+    @Test
+    void callChat_webClientResponseException_thrown() {
+        org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec requestSpec =
+                mock(org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec.class, RETURNS_DEEP_STUBS);
+        when(promptFactory.preparePrompt(eq(modelConfig), any(), any(), any(), anyBoolean(), any(), any())).thenReturn(requestSpec);
+        WebClientResponseException error = WebClientResponseException.create(429, "Too Many Requests",
+                org.springframework.http.HttpHeaders.EMPTY, "rate limit".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                java.nio.charset.StandardCharsets.UTF_8);
+        when(requestSpec.call().chatResponse()).thenThrow(error);
+        AIBotChatOptions options = new AIBotChatOptions(0.7, 1000, null, "Hi", false, Map.of());
+        ChatAICommand command = new ChatAICommand(
+                java.util.Set.of(ModelCapabilities.CHAT), 0.7, 1000, null, "Hi", false, Map.of(), Map.of());
+        assertThrows(WebClientResponseException.class, () ->
+                chatService.callChat(modelConfig, command, options, List.of()));
     }
 }

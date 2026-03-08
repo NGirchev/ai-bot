@@ -15,7 +15,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -86,7 +86,7 @@ class TypingIndicatorServiceTest {
 
     @Test
     void stopTyping_whenNeverStarted_doesNotThrow() {
-        service.stopTyping(42L);
+        assertDoesNotThrow(() -> service.stopTyping(42L));
     }
 
     @Test

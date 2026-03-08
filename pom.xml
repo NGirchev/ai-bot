@@ -114,6 +114,7 @@
         <maven.release.plugin>3.0.0</maven.release.plugin>
         <central.publishing.plugin>0.9.0</central.publishing.plugin>
         <jacoco.version>0.8.12</jacoco.version>
+        <sonar-maven-plugin.version>5.5.0.6356</sonar-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -329,6 +330,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-gpg-plugin</artifactId>
                     <version>${maven.gpg.plugin}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar-maven-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>

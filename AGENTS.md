@@ -424,6 +424,7 @@ mvn test -pl aibot-spring-ai -Dtest=SpringAIGatewayIT
 
 - **Local checks:** Use the IDE plugin (e.g. SonarLint) — it runs rules on the current code without Maven or upload.
 - **CI:** The GitHub Actions workflow runs `mvn verify sonar:sonar` and uploads to SonarCloud.
+- **Coverage (Sonar):** Sonar uses JaCoCo reports but applies `sonar.coverage.exclusions` (see `sonar-project.properties`), so the reported coverage is higher than raw JaCoCo (excluded code is not counted). To see the exact Sonar coverage: run `mvn verify sonar:sonar` (set `SONAR_TOKEN` from SonarCloud) and open the project on SonarCloud. To approximate it locally after `mvn test jacoco:report`: run `python scripts/sonar-coverage-from-jacoco.py` (requires Python 3).
 
 ### DB migrations
 ```bash

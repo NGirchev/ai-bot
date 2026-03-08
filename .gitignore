@@ -27,3 +27,4 @@
 **/.DS_Store
 /.env
 /.cursor/mcp.json
+/target/

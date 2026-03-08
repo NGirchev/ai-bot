@@ -153,4 +153,32 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- Align with sonar.coverage.exclusions so report matches Quality Gate -->
+                        <exclude>**/config/**</exclude>
+                        <exclude>**/model/**</exclude>
+                        <exclude>**/repository/**</exclude>
+                        <exclude>**/storage/config/**</exclude>
+                        <exclude>**/storage/service/MinioFileStorageService.class</exclude>
+                        <exclude>**/exception/**</exclude>
+                        <exclude>**/ai/LlmParamNames.class</exclude>
+                        <exclude>**/ai/command/**</exclude>
+                        <exclude>**/ai/response/**</exclude>
+                        <exclude>**/bulkhead/model/UserPriority.class</exclude>
+                        <exclude>**/bulkhead/service/I*.class</exclude>
+                        <exclude>**/bulkhead/service/*NoOp*.class</exclude>
+                        <exclude>**/bulkhead/service/impl/NoOp*.class</exclude>
+                        <exclude>**/storage/service/FileStorageService.class</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

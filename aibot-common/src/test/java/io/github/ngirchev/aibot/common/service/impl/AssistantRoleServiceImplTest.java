@@ -190,4 +190,89 @@ class AssistantRoleServiceImplTest {
 
         verify(assistantRoleRepository).save(managed);
     }
+
+    @Test
+    void updateActiveRole_whenContentUnchanged_returnsCurrentRole() {
+        when(user.getId()).thenReturn(100L);
+        AssistantRole current = new AssistantRole();
+        current.setId(1L);
+        current.setContent("Same");
+        current.setUser(user);
+        when(assistantRoleRepository.findActiveByUser(user)).thenReturn(Optional.of(current));
+
+        AssistantRole result = service.updateActiveRole(user, "Same");
+
+        assertEquals(current, result);
+        verify(assistantRoleRepository, never()).save(any(AssistantRole.class));
+    }
+
+    @Test
+    void updateActiveRole_whenContentChanged_createsNewAndActivates() {
+        when(user.getId()).thenReturn(100L);
+        AssistantRole current = new AssistantRole();
+        current.setId(1L);
+        current.setContent("Old");
+        current.setUser(user);
+        when(assistantRoleRepository.findActiveByUser(user)).thenReturn(Optional.of(current));
+        when(assistantRoleRepository.findByUserAndContentHash(eq(user), any())).thenReturn(Optional.empty());
+        when(assistantRoleRepository.findMaxVersionByUser(user)).thenReturn(1);
+        AssistantRole newRole = new AssistantRole();
+        newRole.setId(2L);
+        newRole.setContent("New");
+        newRole.setUser(user);
+        newRole.setVersion(2);
+        when(assistantRoleRepository.save(any(AssistantRole.class))).thenAnswer(inv -> {
+            AssistantRole r = inv.getArgument(0);
+            if (r.getId() == null) {
+                r.setId(2L);
+            }
+            return r;
+        });
+        when(assistantRoleRepository.findById(2L)).thenReturn(Optional.of(newRole));
+
+        AssistantRole result = service.updateActiveRole(user, "New");
+
+        assertNotNull(result);
+        verify(assistantRoleRepository).deactivateAllByUser(user);
+        verify(assistantRoleRepository, atLeast(1)).save(any(AssistantRole.class));
+    }
+
+    @Test
+    void getOrCreateDefaultRole_whenActivePresent_returnsIt() {
+        when(user.getId()).thenReturn(100L);
+        AssistantRole active = new AssistantRole();
+        active.setId(1L);
+        active.setContent("Default");
+        active.setUser(user);
+        when(assistantRoleRepository.findActiveByUser(user)).thenReturn(Optional.of(active));
+
+        AssistantRole result = service.getOrCreateDefaultRole(user, "Default");
+
+        assertEquals(active, result);
+        verify(assistantRoleRepository, never()).save(any(AssistantRole.class));
+    }
+
+    @Test
+    void getOrCreateDefaultRole_whenNoActive_createsAndActivates() {
+        when(user.getId()).thenReturn(100L);
+        when(assistantRoleRepository.findActiveByUser(user)).thenReturn(Optional.empty());
+        when(assistantRoleRepository.findByUserAndContentHash(eq(user), any())).thenReturn(Optional.empty());
+        when(assistantRoleRepository.findMaxVersionByUser(user)).thenReturn(0);
+        when(assistantRoleRepository.save(any(AssistantRole.class))).thenAnswer(inv -> {
+            AssistantRole r = inv.getArgument(0);
+            r.setId(1L);
+            return r;
+        });
+        AssistantRole created = new AssistantRole();
+        created.setId(1L);
+        created.setUser(user);
+        when(assistantRoleRepository.findById(1L)).thenReturn(Optional.of(created));
+
+        AssistantRole result = service.getOrCreateDefaultRole(user, "Default");
+
+        assertNotNull(result);
+        assertEquals(1L, result.getId());
+        verify(assistantRoleRepository).deactivateAllByUser(user);
+        verify(assistantRoleRepository, atLeast(1)).save(any(AssistantRole.class));
+    }
 }

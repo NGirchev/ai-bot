@@ -9,7 +9,9 @@ import io.github.ngirchev.aibot.common.ai.command.AICommand;
 import io.github.ngirchev.aibot.common.ai.command.ChatAICommand;
 import io.github.ngirchev.aibot.common.ai.response.AIResponse;
 import io.github.ngirchev.aibot.common.ai.response.SpringAIResponse;
+import io.github.ngirchev.aibot.common.ai.response.SpringAIStreamResponse;
 import io.github.ngirchev.aibot.common.service.AIGatewayRegistry;
+import reactor.core.publisher.Flux;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +24,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.List;
 import java.util.Map;
@@ -33,6 +36,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
+
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -86,6 +91,12 @@ class SpringAIGatewayTest {
                 docProvider,
                 ragProvider
         );
+    }
+
+    @Test
+    void init_registersGatewayWithRegistry() {
+        gateway.init();
+        verify(aiGatewayRegistry, times(1)).registerAiGateway(eq(gateway));
     }
 
     @Test
@@ -199,5 +210,97 @@ class SpringAIGatewayTest {
         ArgumentCaptor<List> messagesCaptor = ArgumentCaptor.forClass(List.class);
         verify(chatService).callChatFromBody(eq(modelConfig), eq(body), isNull(), eq(true), messagesCaptor.capture());
         assertEquals(1, messagesCaptor.getValue().size());
+    }
+
+    @Test
+    void generateResponse_command_emptyCandidates_usesAutoFallback() {
+        when(springAIProperties.getMock()).thenReturn(false);
+        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.CHAT)), any())).thenReturn(List.of());
+        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any())).thenReturn(List.of(modelConfig));
+        when(chatService.callChat(any(), any(), any(), any())).thenReturn(
+                new SpringAIResponse(ChatResponse.builder()
+                        .generations(List.of(new Generation(new AssistantMessage("OK"))))
+                        .build()));
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT), 0.7, 1000, "Sys", "User", false, Map.of(), Map.of());
+        AIResponse response = gateway.generateResponse(command);
+        assertNotNull(response);
+        verify(chatService).callChat(eq(modelConfig), eq(command), any(), any());
+    }
+
+    @Test
+    void generateResponse_command_noCandidatesAndNoAutoFallback_throws() {
+        when(springAIProperties.getMock()).thenReturn(false);
+        when(springAIModelRegistry.getCandidatesByCapabilities(any(), any())).thenReturn(List.of());
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT), 0.7, 1000, "Sys", "User", false, Map.of(), Map.of());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.generateResponse(command));
+        assertNotNull(ex.getCause());
+        assertTrue(ex.getCause().getMessage().contains("No model found"));
+        verify(chatService, never()).callChat(any(), any(), any(), any());
+        verify(chatService, never()).streamChat(any(), any(), any(), any());
+    }
+
+    @Test
+    void generateResponse_commandWithStreamTrue_callsStreamChat() {
+        when(springAIProperties.getMock()).thenReturn(false);
+        when(chatService.streamChat(any(), any(), any(), any())).thenReturn(new SpringAIStreamResponse(Flux.empty()));
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT), 0.7, 1000,
+                "System", "User", true, Map.of(), Map.of()
+        );
+        AIResponse response = gateway.generateResponse(command);
+        assertNotNull(response);
+        verify(chatService, times(1)).streamChat(eq(modelConfig), eq(command), any(), any());
+        verify(chatService, never()).callChat(any(), any(), any(), any());
+    }
+
+    @Test
+    void generateResponse_commandOptionsNotAIBotChatOptions_throws() {
+        AICommand command = mock(AICommand.class);
+        when(command.options()).thenReturn(null);
+        when(command.modelCapabilities()).thenReturn(Set.of(ModelCapabilities.CHAT));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.generateResponse(command));
+        assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+    }
+
+    @Test
+    void generateResponse_mapBody_modelNotInRegistry_usesFallbackByCapabilities() {
+        when(springAIProperties.getMock()).thenReturn(false);
+        when(springAIModelRegistry.getByModelName(eq("other-model"))).thenReturn(Optional.empty());
+        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any()))
+                .thenReturn(List.of(modelConfig));
+        ChatResponse chatResponse = ChatResponse.builder()
+                .generations(List.of(new Generation(new AssistantMessage("OK"))))
+                .build();
+        when(chatService.callChatFromBody(any(), any(), any(), anyBoolean(), any())).thenReturn(new SpringAIResponse(chatResponse));
+        Map<String, Object> body = Map.of(MODEL, "other-model", MESSAGES, List.of());
+        AIResponse response = gateway.generateResponse(body);
+        assertNotNull(response);
+        verify(chatService).callChatFromBody(eq(modelConfig), eq(body), isNull(), eq(true), any());
+    }
+
+    @Test
+    void generateResponse_mapBody_unknownModelNoFallback_throws() {
+        when(springAIProperties.getMock()).thenReturn(false);
+        when(springAIModelRegistry.getByModelName(eq("unknown-model"))).thenReturn(Optional.empty());
+        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any())).thenReturn(List.of());
+        Map<String, Object> body = Map.of(MODEL, "unknown-model", MESSAGES, List.of());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.generateResponse(body));
+        assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+        assertTrue(ex.getCause().getMessage().contains("Unknown model"));
+    }
+
+    @Test
+    void generateResponse_command_whenChatServiceThrowsWebClientResponseException_wrapsInRuntimeException() {
+        when(springAIProperties.getMock()).thenReturn(false);
+        WebClientResponseException error = WebClientResponseException.create(429, "Too Many Requests",
+                org.springframework.http.HttpHeaders.EMPTY, new byte[0], null);
+        when(chatService.callChat(any(), any(), any(), any())).thenThrow(error);
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT), 0.7, 1000, "Sys", "User", false, Map.of(), Map.of());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.generateResponse(command));
+        assertTrue(ex.getMessage().contains("Failed to generate response from Spring AI"));
+        assertSame(error, ex.getCause());
     }
 }

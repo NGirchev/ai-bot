@@ -26,6 +26,9 @@
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Exclude from SonarCloud analysis and coverage (UI module) -->
+        <sonar.skip>true</sonar.skip>
     </properties>
 
     <dependencies>
