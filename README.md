@@ -398,6 +398,7 @@ File -> Invalidate Caches / Restart
 
 - **[AGENTS.md](AGENTS.md)** — Detailed documentation for AI agents (architecture, module structure, code style)
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute (setup, code style, testing, PR requirements)
+- **[SECURITY.md](SECURITY.md)** — How to report security vulnerabilities
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** — Server deployment guide
 - **[MODULAR_MIGRATIONS.md](MODULAR_MIGRATIONS.md)** — Flyway modular migrations
 
