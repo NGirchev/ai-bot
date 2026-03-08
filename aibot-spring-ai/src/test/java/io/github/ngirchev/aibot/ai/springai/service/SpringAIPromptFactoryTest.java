@@ -129,9 +129,13 @@ class SpringAIPromptFactoryTest {
     }
 
     @Test
-    void preparePrompt_nullModelConfig_usesModelName() {
+    void preparePrompt_modelConfigWithNullProviderType_usesModelName() {
+        SpringAIModelConfig configWithNullProvider = new SpringAIModelConfig();
+        configWithNullProvider.setName("some-model");
+        configWithNullProvider.setProviderType(null);
+        configWithNullProvider.setCapabilities(List.of(ModelCapabilities.CHAT));
         var spec = promptFactory.preparePrompt(
-                null,
+                configWithNullProvider,
                 "ollama-model",
                 null,
                 null,
@@ -142,5 +146,6 @@ class SpringAIPromptFactoryTest {
         assertNotNull(spec);
         ChatResponse response = spec.call().chatResponse();
         assertNotNull(response);
+        verify(ollamaChatModel, times(1)).call(any(Prompt.class));
     }
 }

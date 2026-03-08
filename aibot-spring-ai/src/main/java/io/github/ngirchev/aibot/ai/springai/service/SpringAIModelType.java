@@ -110,6 +110,14 @@ public class SpringAIModelType {
         return getByCapabilities(Set.of(modelCapabilities));
     }
 
+    /**
+     * Returns the first model from the configured list (application.yaml models.list order).
+     * Use when a default model is needed (e.g. to choose OpenAI vs Ollama client).
+     */
+    public Optional<SpringAIModelConfig> getFirstModel() {
+        return models.isEmpty() ? Optional.empty() : Optional.of(models.get(0));
+    }
+
     public Optional<SpringAIModelConfig> getByModelName(String modelName) {
         return models.stream()
                 .filter(model -> model.getName().equals(modelName))

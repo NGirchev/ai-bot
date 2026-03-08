@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 import static io.github.ngirchev.aibot.common.ai.LlmParamNames.*;
@@ -238,20 +240,24 @@ public class SpringAIPromptFactory {
     }
 
     private ChatClient getChatClient(SpringAIModelConfig modelConfig, String modelName) {
-        if (modelConfig != null && modelConfig.getProviderType() != null) {
+        Objects.requireNonNull(modelConfig, "modelConfig must not be null");
+        if (modelConfig.getProviderType() != null) {
             return modelConfig.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI
                     ? openAiChatClient
                     : ollamaChatClient;
         }
         if (modelName != null) {
-            if (isOpenAIProvider(null, modelName)) {
+            if (isOpenAIProvider(modelConfig, modelName)) {
                 return openAiChatClient;
-            } else if (springAIModelType.isOllamaModel(modelName)) {
+            }
+            if (springAIModelType.isOllamaModel(modelName)) {
                 return ollamaChatClient;
             }
         }
-
-        return ollamaChatClient;
+        return springAIModelType.getFirstModel()
+                .filter(m -> m.getProviderType() != null)
+                .map(m -> m.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI ? openAiChatClient : ollamaChatClient)
+                .orElse(openAiChatClient);
     }
 
     private boolean isOpenAIProvider(SpringAIModelConfig modelConfig, String modelName) {

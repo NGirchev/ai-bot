@@ -132,6 +132,11 @@ public class SpringAIGateway implements AIGateway {
         if (modelConfig == null) {
             throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
         }
+        if (modelConfig.getProviderType() == null) {
+            throw new IllegalStateException(
+                    "Model from registry has null providerType. model=" + modelConfig.getName()
+                            + ". Ensure ai-bot.ai.spring-ai.models.list entries have provider-type: OPENAI or OLLAMA.");
+        }
         if (chatOptions.stream()) {
             return chatService.streamChat(modelConfig, command, chatOptions, messages);
         }
