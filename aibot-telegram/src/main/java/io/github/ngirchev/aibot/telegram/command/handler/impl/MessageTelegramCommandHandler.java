@@ -129,7 +129,7 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             AIGateway aiGateway = aiGatewayRegistry.getSupportedAiGateways(aiCommand)
                     .stream()
                     .findFirst()
-                    .orElseThrow(() -> new RuntimeException("No supported AI gateway found for AI Command " + aiCommand));
+                    .orElseThrow(() -> new RuntimeException(AIUtils.NO_SUPPORTED_AI_GATEWAY + " for AI Command " + aiCommand));
             AIResponse aiResponse = aiGateway.generateResponse(aiCommand);
             ResponseContext ctx = extractResponseContext(aiResponse, command, message);
 
@@ -141,69 +141,71 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                 return null;
             }
         } catch (UserMessageTooLongException e) {
-            log.warn("Message exceeds token limit: {}", e.getMessage());
-            Integer replyToMessageId = message != null ? message.getMessageId() : null;
-            String errorText = e.getEstimatedTokens() > 0 && e.getMaxAllowed() > 0
-                    ? messageLocalizationService.getMessage("common.error.message.too.long", command.languageCode(), e.getEstimatedTokens(), e.getMaxAllowed())
-                    : e.getMessage();
-            sendErrorMessage(command.telegramId(), errorText, replyToMessageId);
+            handleUserMessageTooLong(command, message, e);
             return null;
         } catch (DocumentContentNotExtractableException e) {
-            log.warn("Could not extract text from document: {}", e.getMessage());
-            Integer replyToMessageId = message != null ? message.getMessageId() : null;
-            if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
-                String errorRoleContent = userMessage.getAssistantRole() != null
-                        ? userMessage.getAssistantRole().getContent()
-                        : null;
-                telegramMessageService.saveAssistantErrorMessage(
-                        telegramUser,
-                        e.getMessage(),
-                        modelCapabilities.toString(),
-                        errorRoleContent,
-                        null);
-            }
-            sendErrorMessage(command.telegramId(), e.getMessage(), replyToMessageId);
+            handleDocumentContentNotExtractable(command, message, userMessage, modelCapabilities, e);
             return null;
         } catch (Exception e) {
-            DocumentContentNotExtractableException docEx = findDocumentContentNotExtractable(e);
-            if (docEx != null) {
-                log.warn("Could not extract text from document: {}", docEx.getMessage());
-                Integer replyToMessageId = message != null ? message.getMessageId() : null;
-                if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
-                    String errorRoleContent = userMessage.getAssistantRole() != null
-                            ? userMessage.getAssistantRole().getContent()
-                            : null;
-                    telegramMessageService.saveAssistantErrorMessage(
-                            telegramUser,
-                            docEx.getMessage(),
-                            modelCapabilities.toString(),
-                            errorRoleContent,
-                            null);
-                }
-                sendErrorMessage(command.telegramId(), docEx.getMessage(), replyToMessageId);
-                return null;
-            }
-            if (AIUtils.shouldLogWithoutStacktrace(e)) {
-                log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, AIUtils.getRootCauseMessage(e));
-            } else {
-                log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, e);
-            }
-            if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
-                // Get role from saved message for saving error
-                String errorRoleContent = userMessage.getAssistantRole() != null
-                        ? userMessage.getAssistantRole().getContent()
-                        : null;
-                telegramMessageService.saveAssistantErrorMessage(
-                        telegramUser,
-                        "An error occurred while processing your request",
-                        modelCapabilities.toString(),
-                        errorRoleContent,
-                        null);
-            }
-            Integer replyToMessageId = message != null ? message.getMessageId() : null;
-            sendErrorMessage(command.telegramId(), "An error occurred while processing your request", replyToMessageId);
+            handleProcessingException(command, message, userMessage, modelCapabilities, e);
+            return null;
         }
         return null;
+    }
+
+    private void handleUserMessageTooLong(TelegramCommand command, Message message, UserMessageTooLongException e) {
+        log.warn("Message exceeds token limit: {}", e.getMessage());
+        Integer replyToMessageId = message != null ? message.getMessageId() : null;
+        String errorText = e.getEstimatedTokens() > 0 && e.getMaxAllowed() > 0
+                ? messageLocalizationService.getMessage("common.error.message.too.long", command.languageCode(), e.getEstimatedTokens(), e.getMaxAllowed())
+                : e.getMessage();
+        sendErrorMessage(command.telegramId(), errorText, replyToMessageId);
+    }
+
+    private void handleDocumentContentNotExtractable(TelegramCommand command, Message message, AIBotMessage userMessage,
+                                                    Set<ModelCapabilities> modelCapabilities,
+                                                    DocumentContentNotExtractableException e) {
+        log.warn("Could not extract text from document: {}", e.getMessage());
+        Integer replyToMessageId = message != null ? message.getMessageId() : null;
+        if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
+            String errorRoleContent = userMessage.getAssistantRole() != null
+                    ? userMessage.getAssistantRole().getContent()
+                    : null;
+            telegramMessageService.saveAssistantErrorMessage(
+                    telegramUser,
+                    e.getMessage(),
+                    modelCapabilities.toString(),
+                    errorRoleContent,
+                    null);
+        }
+        sendErrorMessage(command.telegramId(), e.getMessage(), replyToMessageId);
+    }
+
+    private void handleProcessingException(TelegramCommand command, Message message, AIBotMessage userMessage,
+                                           Set<ModelCapabilities> modelCapabilities, Exception e) {
+        DocumentContentNotExtractableException docEx = findDocumentContentNotExtractable(e);
+        if (docEx != null) {
+            handleDocumentContentNotExtractable(command, message, userMessage, modelCapabilities, docEx);
+            return;
+        }
+        if (AIUtils.shouldLogWithoutStacktrace(e)) {
+            log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, AIUtils.getRootCauseMessage(e));
+        } else {
+            log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, e);
+        }
+        if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
+            String errorRoleContent = userMessage.getAssistantRole() != null
+                    ? userMessage.getAssistantRole().getContent()
+                    : null;
+            telegramMessageService.saveAssistantErrorMessage(
+                    telegramUser,
+                    "An error occurred while processing your request",
+                    modelCapabilities.toString(),
+                    errorRoleContent,
+                    null);
+        }
+        Integer replyToMessageId = message != null ? message.getMessageId() : null;
+        sendErrorMessage(command.telegramId(), "An error occurred while processing your request", replyToMessageId);
     }
 
     private static DocumentContentNotExtractableException findDocumentContentNotExtractable(Throwable t) {
@@ -269,7 +271,7 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
     private void sendEmptyContentError(TelegramCommand command, TelegramUser telegramUser, Message message,
                                        ResponseContext ctx, Set<ModelCapabilities> modelCapabilities,
                                        String assistantRoleContent) {
-        String errorMessage = ctx.errorOpt().orElse("Content is empty");
+        String errorMessage = ctx.errorOpt().orElse(AIUtils.CONTENT_IS_EMPTY);
         telegramMessageService.saveAssistantErrorMessage(
                 telegramUser,
                 errorMessage,

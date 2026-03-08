@@ -33,6 +33,11 @@ import static io.github.ngirchev.aibot.common.ai.LlmParamNames.*;
 @Slf4j
 public class AIUtils {
 
+    /** Default message when AI response has no text content. Used in REST, Telegram, and stream handling. */
+    public static final String CONTENT_IS_EMPTY = "Content is empty";
+    /** Message when no gateway supports the given AI command. */
+    public static final String NO_SUPPORTED_AI_GATEWAY = "No supported AI gateway found";
+
     /**
      * Class name of expected empty-stream exception (retry), to avoid printing long stack trace.
      */
@@ -218,7 +223,7 @@ public class AIUtils {
 
                 // If content is empty, log warning
                 if (content == null || content.isEmpty()) {
-                    log.warn("Content is empty in response");
+                    log.warn("{} in response", CONTENT_IS_EMPTY);
                 }
             } else {
                 log.error("Response is incorrect. Choices is empty. Response: {}", aiRawResponse);
@@ -461,60 +466,11 @@ public class AIUtils {
                     .doOnNext(ignored -> chunksWithNonEmptyText.incrementAndGet())
                     .map(Optional::get)
                     // concurrency=1, prefetch=1 — do not request many chunks at once from source, or stream buffers and all Telegram messages arrive at once
-                    .flatMap(chunk -> {
-                        try {
-                            // Append tail to new chunk
-                            String text = tail.get() + chunk;
-
-                            // Split into paragraphs by double newlines
-                            String[] paragraphs = text.split("\n\n", -1);
-
-                            // Check if text ends with \n\n
-                            boolean endsWithParagraph = text.endsWith("\n\n");
-
-                            if (endsWithParagraph) {
-                                // Text ends with separator - process all paragraphs
-                                tail.set("");
-                                return Flux.fromArray(paragraphs);
-                            } else {
-                                // Last piece may be incomplete paragraph - keep in tail
-                                tail.set(paragraphs[paragraphs.length - 1]);
-                                return Flux.fromArray(Arrays.copyOfRange(paragraphs, 0, paragraphs.length - 1));
-                            }
-                        } catch (Exception e) {
-                            log.debug("Error processing chunk: {}", e.getMessage());
-                            return Flux.empty();
-                        }
-                    }, 1, 1)
+                    .flatMap(chunk -> splitChunkIntoParagraphs(chunk, tail), 1, 1)
                     // Filter empty paragraphs
                     .filter(paragraph -> !paragraph.trim().isEmpty())
                     // Process paragraphs with minimum length (prefetch 1 — do not buffer)
-                    .flatMap(paragraph -> {
-                        String trimmed = paragraph.trim();
-
-                        // If paragraph is short (< MIN_PARAGRAPH_LENGTH), accumulate it
-                        if (trimmed.length() < MIN_PARAGRAPH_LENGTH) {
-                            String toSend = accumulatedShortParagraphs.get();
-                            toSend = toSend.isEmpty() ? trimmed : toSend + "\n\n" + trimmed;
-                            accumulatedShortParagraphs.set(toSend);
-
-                            // When accumulated text reaches minimum length, send it
-                            if (toSend.length() >= MIN_PARAGRAPH_LENGTH) {
-                                accumulatedShortParagraphs.set("");
-                                return Flux.just(toSend);
-                            }
-                            return Flux.empty();
-                        } else {
-                            // Paragraph is long enough
-                            String accumulated = accumulatedShortParagraphs.get();
-                            if (!accumulated.isEmpty()) {
-                                // Send accumulated short paragraphs together with current one
-                                accumulatedShortParagraphs.set("");
-                                return Flux.just(accumulated + "\n\n" + trimmed);
-                            }
-                            return Flux.just(trimmed);
-                        }
-                    }, 1, 1)
+                    .flatMap(paragraph -> processParagraphByMinLength(paragraph.trim(), accumulatedShortParagraphs, MIN_PARAGRAPH_LENGTH), 1, 1)
                     // Split blocks by maxMessageLength limit (prefetch 1 — do not buffer)
                     .flatMap(block -> splitBlockByMaxLength(block, overflowBuffer, maxMessageLength), 1, 1)
                     // Send each block as a whole
@@ -540,33 +496,9 @@ public class AIUtils {
                 listener.accept(accumulated);
             }
 
-            // Get final text
             String finalText = fullResponse.get().trim();
-
-            // If we got data from stream, return it
-            if (!finalText.isEmpty() && finalResponse != null) {
-                AssistantMessage fullMessage = new AssistantMessage(finalText);
-                Generation generation = new Generation(fullMessage);
-
-                return ChatResponse.builder()
-                        .generations(List.of(generation))
-                        .metadata(finalResponse.getMetadata())
-                        .build();
-            }
-
-            // If no data but we have finalResponse, return it (empty content — log diagnostics)
-            if (finalResponse != null) {
-                String finishReason = extractFinishReason(finalResponse);
-                log.debug(
-                        "[processStreamingResponseByParagraphs] Empty finalText diagnostic: totalChunks={}, chunksWithNonEmptyText={}, fullResponseLength={}, tailLength={}, accumulatedShortLength={}",
-                        totalChunks.get(), chunksWithNonEmptyText.get(),
-                        fullResponse.get().length(), tail.get().length(), accumulatedShortParagraphs.get().length());
-                logEmptyContentDiagnostics(finalResponse, finishReason, "processStreamingResponseByParagraphs");
-                return finalResponse;
-            }
-
-            // If we got nothing, it will be handled in catch block
-            throw new RuntimeException("No data received from streaming response");
+            return buildStreamingResponseResult(finalText, finalResponse, totalChunks, chunksWithNonEmptyText,
+                    fullResponse, tail, accumulatedShortParagraphs);
 
         } catch (Exception e) {
             if (shouldLogWithoutStacktrace(e)) {
@@ -576,6 +508,67 @@ public class AIUtils {
             }
             throw e;
         }
+    }
+
+    private static ChatResponse buildStreamingResponseResult(String finalText, ChatResponse finalResponse,
+                                                            AtomicInteger totalChunks, AtomicInteger chunksWithNonEmptyText,
+                                                            AtomicReference<String> fullResponse,
+                                                            AtomicReference<String> tail,
+                                                            AtomicReference<String> accumulatedShortParagraphs) {
+        if (!finalText.isEmpty() && finalResponse != null) {
+            AssistantMessage fullMessage = new AssistantMessage(finalText);
+            Generation generation = new Generation(fullMessage);
+            return ChatResponse.builder()
+                    .generations(List.of(generation))
+                    .metadata(finalResponse.getMetadata())
+                    .build();
+        }
+        if (finalResponse != null) {
+            String finishReason = extractFinishReason(finalResponse);
+            log.debug(
+                    "[processStreamingResponseByParagraphs] Empty finalText diagnostic: totalChunks={}, chunksWithNonEmptyText={}, fullResponseLength={}, tailLength={}, accumulatedShortLength={}",
+                    totalChunks.get(), chunksWithNonEmptyText.get(), fullResponse.get().length(), tail.get().length(), accumulatedShortParagraphs.get().length());
+            logEmptyContentDiagnostics(finalResponse, finishReason, "processStreamingResponseByParagraphs");
+            return finalResponse;
+        }
+        throw new RuntimeException("No data received from streaming response");
+    }
+
+    private static Flux<String> splitChunkIntoParagraphs(String chunk, AtomicReference<String> tail) {
+        try {
+            String text = tail.get() + chunk;
+            String[] paragraphs = text.split("\n\n", -1);
+            if (text.endsWith("\n\n")) {
+                tail.set("");
+                return Flux.fromArray(paragraphs);
+            }
+            tail.set(paragraphs[paragraphs.length - 1]);
+            return Flux.fromArray(Arrays.copyOfRange(paragraphs, 0, paragraphs.length - 1));
+        } catch (Exception e) {
+            log.debug("Error processing chunk: {}", e.getMessage());
+            return Flux.empty();
+        }
+    }
+
+    private static Flux<String> processParagraphByMinLength(String trimmed,
+                                                           AtomicReference<String> accumulatedShortParagraphs,
+                                                           int minParagraphLength) {
+        if (trimmed.length() < minParagraphLength) {
+            String toSend = accumulatedShortParagraphs.get();
+            toSend = toSend.isEmpty() ? trimmed : toSend + "\n\n" + trimmed;
+            accumulatedShortParagraphs.set(toSend);
+            if (toSend.length() >= minParagraphLength) {
+                accumulatedShortParagraphs.set("");
+                return Flux.just(toSend);
+            }
+            return Flux.empty();
+        }
+        String accumulated = accumulatedShortParagraphs.get();
+        if (!accumulated.isEmpty()) {
+            accumulatedShortParagraphs.set("");
+            return Flux.just(accumulated + "\n\n" + trimmed);
+        }
+        return Flux.just(trimmed);
     }
 
     /**
@@ -850,7 +843,7 @@ public class AIUtils {
 
     public static String getEmptyContentReasonText(String finishReason) {
         if (finishReason == null || finishReason.isBlank()) {
-            return "Content is empty";
+            return CONTENT_IS_EMPTY;
         }
 
         String upper = finishReason.toUpperCase();
@@ -863,7 +856,7 @@ public class AIUtils {
             case "FUNCTION_CALL" ->
                     "Model requested function call instead of text response (finish_reason: function_call).";
             case "TOOL_CALLS" -> "Model requested tool calls instead of text response (finish_reason: tool_calls).";
-            default -> "Content is empty (finish_reason: " + finishReason + ")";
+            default -> CONTENT_IS_EMPTY + " (finish_reason: " + finishReason + ")";
         };
     }
 
@@ -881,30 +874,41 @@ public class AIUtils {
         String[] paragraphs = blockToProcess.split("\n\n", -1);
         StringBuilder currentPart = new StringBuilder();
         for (String paragraph : paragraphs) {
-            String paragraphWithSeparator = currentPart.isEmpty() ? paragraph : currentPart + "\n\n" + paragraph;
-            if (paragraphWithSeparator.length() <= maxMessageLength) {
-                currentPart = new StringBuilder(paragraphWithSeparator);
-            } else {
-                if (!currentPart.isEmpty()) {
-                    parts.add(currentPart.toString());
-                    currentPart = new StringBuilder(paragraph);
-                } else {
-                    int splitPoint = findSplitPoint(paragraph, maxMessageLength);
-                    parts.add(paragraph.substring(0, splitPoint));
-                    overflowBuffer.set(paragraph.substring(splitPoint));
-                }
-            }
+            currentPart = appendParagraphToBlockParts(paragraph, currentPart, parts, overflowBuffer, maxMessageLength);
+        }
+        addRemainingBlockPart(currentPart, parts, overflowBuffer, maxMessageLength);
+        return parts.isEmpty() ? Flux.empty() : Flux.fromIterable(parts);
+    }
+
+    private static StringBuilder appendParagraphToBlockParts(String paragraph, StringBuilder currentPart,
+                                                             List<String> parts, AtomicReference<String> overflowBuffer,
+                                                             int maxMessageLength) {
+        String paragraphWithSeparator = currentPart.isEmpty() ? paragraph : currentPart + "\n\n" + paragraph;
+        if (paragraphWithSeparator.length() <= maxMessageLength) {
+            return new StringBuilder(paragraphWithSeparator);
         }
         if (!currentPart.isEmpty()) {
-            if (currentPart.length() <= maxMessageLength) {
-                parts.add(currentPart.toString());
-            } else {
-                int splitPoint = findSplitPoint(currentPart.toString(), maxMessageLength);
-                parts.add(currentPart.substring(0, splitPoint));
-                overflowBuffer.set(currentPart.substring(splitPoint));
-            }
+            parts.add(currentPart.toString());
+            return new StringBuilder(paragraph);
         }
-        return parts.isEmpty() ? Flux.empty() : Flux.fromIterable(parts);
+        int splitPoint = findSplitPoint(paragraph, maxMessageLength);
+        parts.add(paragraph.substring(0, splitPoint));
+        overflowBuffer.set(paragraph.substring(splitPoint));
+        return new StringBuilder();
+    }
+
+    private static void addRemainingBlockPart(StringBuilder currentPart, List<String> parts,
+                                              AtomicReference<String> overflowBuffer, int maxMessageLength) {
+        if (currentPart.isEmpty()) {
+            return;
+        }
+        if (currentPart.length() <= maxMessageLength) {
+            parts.add(currentPart.toString());
+        } else {
+            int splitPoint = findSplitPoint(currentPart.toString(), maxMessageLength);
+            parts.add(currentPart.substring(0, splitPoint));
+            overflowBuffer.set(currentPart.substring(splitPoint));
+        }
     }
 
     /**

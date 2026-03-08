@@ -12,6 +12,7 @@ import io.github.ngirchev.aibot.common.repository.AIBotMessageRepository;
 import io.github.ngirchev.aibot.common.repository.ConversationThreadRepository;
 import io.github.ngirchev.aibot.common.service.*;
 import io.github.ngirchev.aibot.rest.controller.SessionController;
+import io.github.ngirchev.aibot.rest.handler.RestChatHandlerSupport;
 import io.github.ngirchev.aibot.rest.handler.RestChatMessageCommandHandler;
 import io.github.ngirchev.aibot.rest.handler.RestChatStreamMessageCommandHandler;
 import io.github.ngirchev.aibot.rest.repository.RestUserRepository;
@@ -64,22 +65,29 @@ public class RestAutoConfig {
 
     @Bean
     @ConditionalOnMissingBean
+    public RestChatHandlerSupport restChatHandlerSupport(
+            ObjectMapper objectMapper,
+            MessageLocalizationService messageLocalizationService,
+            AIBotMessageService messageService) {
+        return new RestChatHandlerSupport(objectMapper, messageLocalizationService, messageService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public RestChatMessageCommandHandler restChatMessageCommandHandler(
             RestMessageService restMessageService,
             RestUserService restUserService,
             AIBotMessageService messageService,
             AIGatewayRegistry aiGatewayRegistry,
             AICommandFactoryRegistry aiCommandFactoryRegistry,
-            ObjectMapper objectMapper,
-            MessageLocalizationService messageLocalizationService) {
+            RestChatHandlerSupport restChatHandlerSupport) {
         return new RestChatMessageCommandHandler(
                 restMessageService,
                 restUserService,
                 messageService,
                 aiGatewayRegistry,
                 aiCommandFactoryRegistry,
-                objectMapper,
-                messageLocalizationService
+                restChatHandlerSupport
         );
     }
 
@@ -91,16 +99,14 @@ public class RestAutoConfig {
             AIBotMessageService messageService,
             AIGatewayRegistry aiGatewayRegistry,
             AICommandFactoryRegistry aiCommandFactoryRegistry,
-            ObjectMapper objectMapper,
-            MessageLocalizationService messageLocalizationService) {
+            RestChatHandlerSupport restChatHandlerSupport) {
         return new RestChatStreamMessageCommandHandler(
                 restMessageService,
                 restUserService,
                 messageService,
                 aiGatewayRegistry,
                 aiCommandFactoryRegistry,
-                objectMapper,
-                messageLocalizationService
+                restChatHandlerSupport
         );
     }
 

@@ -3,6 +3,7 @@ package io.github.ngirchev.aibot.ai.springai.service;
 import lombok.RequiredArgsConstructor;
 import io.github.ngirchev.aibot.ai.springai.config.SpringAIModelConfig;
 import io.github.ngirchev.aibot.common.ai.ModelCapabilities;
+import io.github.ngirchev.aibot.common.service.AIUtils;
 
 import java.util.*;
 
@@ -15,7 +16,7 @@ public class SpringAIModelType {
         return models.stream()
                 .filter(model -> model.getName().equals(modelName))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("No supported AI gateway found"));
+                .orElseThrow(() -> new RuntimeException(AIUtils.NO_SUPPORTED_AI_GATEWAY));
     }
 
     /**

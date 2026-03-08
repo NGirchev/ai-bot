@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -256,27 +257,35 @@ public class TelegramFileService {
         };
     }
 
+    private static final List<Map.Entry<String, String>> MIME_CONTENT_TO_EXTENSION = List.of(
+            Map.entry("wordprocessingml", ".docx"),
+            Map.entry("msword", ".doc"),
+            Map.entry("spreadsheetml", ".xlsx"),
+            Map.entry("ms-excel", ".xls"),
+            Map.entry("presentationml", ".pptx"),
+            Map.entry("ms-powerpoint", ".ppt"),
+            Map.entry("text/plain", ".txt"),
+            Map.entry("rtf", ".rtf"),
+            Map.entry("opendocument.text", ".odt"),
+            Map.entry("opendocument.spreadsheet", ".ods"),
+            Map.entry("opendocument.presentation", ".odp"),
+            Map.entry("csv", ".csv"),
+            Map.entry("text/html", ".html"),
+            Map.entry("markdown", ".md"),
+            Map.entry("json", ".json"),
+            Map.entry("xml", ".xml"),
+            Map.entry("epub", ".epub"),
+            Map.entry("svg", ".svg"),
+            Map.entry("bmp", ".bmp"),
+            Map.entry("tiff", ".tiff")
+    );
+
     private static String extensionFromMimeTypeContent(String type) {
-        if (type.contains("wordprocessingml")) return ".docx";
-        if (type.contains("msword")) return ".doc";
-        if (type.contains("spreadsheetml")) return ".xlsx";
-        if (type.contains("ms-excel")) return ".xls";
-        if (type.contains("presentationml")) return ".pptx";
-        if (type.contains("ms-powerpoint")) return ".ppt";
-        if (type.contains("text/plain")) return ".txt";
-        if (type.contains("rtf")) return ".rtf";
-        if (type.contains("opendocument.text")) return ".odt";
-        if (type.contains("opendocument.spreadsheet")) return ".ods";
-        if (type.contains("opendocument.presentation")) return ".odp";
-        if (type.contains("csv")) return ".csv";
-        if (type.contains("text/html")) return ".html";
-        if (type.contains("markdown")) return ".md";
-        if (type.contains("json")) return ".json";
-        if (type.contains("xml")) return ".xml";
-        if (type.contains("epub")) return ".epub";
-        if (type.contains("svg")) return ".svg";
-        if (type.contains("bmp")) return ".bmp";
-        if (type.contains("tiff")) return ".tiff";
+        for (Map.Entry<String, String> e : MIME_CONTENT_TO_EXTENSION) {
+            if (type.contains(e.getKey())) {
+                return e.getValue();
+            }
+        }
         return "";
     }
 }

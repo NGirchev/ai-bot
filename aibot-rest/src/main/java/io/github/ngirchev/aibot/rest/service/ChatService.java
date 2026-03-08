@@ -62,9 +62,7 @@ public class ChatService {
      */
     @Transactional
     public <T> ChatResponseDto<T> sendMessage(String sessionId, String message, RestUser user, HttpServletRequest request, boolean isStream) {
-        // Find thread by sessionId
-        ConversationThread thread = threadRepository.findByThreadKey(sessionId)
-                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
+        ConversationThread thread = getThreadBySessionId(sessionId);
 
         // Verify thread belongs to user
         if (!thread.getUser().getId().equals(user.getId())) {
@@ -118,8 +116,7 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public List<ChatMessageDto> getChatHistory(String sessionId, RestUser user) {
-        ConversationThread thread = threadRepository.findByThreadKey(sessionId)
-                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
+        ConversationThread thread = getThreadBySessionId(sessionId);
 
         // Verify thread belongs to user
         if (!thread.getUser().getId().equals(user.getId())) {
@@ -142,8 +139,7 @@ public class ChatService {
      */
     @Transactional
     public void deleteSession(String sessionId, RestUser user) {
-        ConversationThread thread = threadRepository.findByThreadKey(sessionId)
-                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
+        ConversationThread thread = getThreadBySessionId(sessionId);
 
         // Verify thread belongs to user
         if (!thread.getUser().getId().equals(user.getId())) {
@@ -158,6 +154,11 @@ public class ChatService {
         threadRepository.delete(thread);
 
         log.info("Deleted session {} for user {}", sessionId, user.getEmail());
+    }
+
+    private ConversationThread getThreadBySessionId(String sessionId) {
+        return threadRepository.findByThreadKey(sessionId)
+                .orElseThrow(() -> new UnauthorizedException(SESSION_NOT_FOUND_PREFIX + sessionId));
     }
 }
 
