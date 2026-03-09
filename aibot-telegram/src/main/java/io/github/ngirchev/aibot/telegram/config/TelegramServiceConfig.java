@@ -41,6 +41,15 @@ public class TelegramServiceConfig {
 
     @Bean
     @ConditionalOnMissingBean
+    public TelegramUsersStartupInitializer telegramUsersStartupInitializer(
+            TelegramUserService telegramUserService,
+            TelegramProperties telegramProperties,
+            org.springframework.beans.factory.ObjectProvider<TelegramBot> telegramBotProvider) {
+        return new TelegramUsersStartupInitializer(telegramUserService, telegramProperties, telegramBotProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public TelegramWhitelistService telegramWhitelistService(
             TelegramWhitelistRepository whitelistRepository,
             @Lazy TelegramBot telegramBot,

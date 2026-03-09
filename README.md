@@ -134,6 +134,8 @@ ai-bot:
 - **Add to whitelist (REGULAR)**: Use TelegramWhitelistService or DB table `telegram_whitelist`
 - **Database fields**: `isAdmin`, `isPremium` in user tables (legacy, config takes priority)
 
+**Startup initialization of direct users**: On application startup, all users listed in `REST_ACCESS_*_EMAILS` and `TELEGRAM_ACCESS_*_IDS` (admin, vip, regular) are created or updated in the database with flags set by level. If a user appears in more than one level, the highest level wins (ADMIN > VIP > REGULAR). Groups/channels are not used for this; only the direct ids/emails from config are initialized. For Telegram, when the bot is available, the initializer calls the getChat API for each configured id to fetch real username, first name, and last name; new users are then created with these values instead of a placeholder (e.g. `id_<telegramId>`). If getChat fails (e.g. user never chatted with the bot), the placeholder is used.
+
 ### Related Files
 
 - `UserPriority.java` — enum with priority levels
@@ -510,7 +512,7 @@ File -> Invalidate Caches / Restart
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute (setup, code style, testing, PR requirements)
 - **[SECURITY.md](SECURITY.md)** — How to report security vulnerabilities
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** — Server deployment guide
-- **[MODULAR_MIGRATIONS.md](MODULAR_MIGRATIONS.md)** — Flyway modular migrations
+- **[MODULAR_MIGRATIONS.md](docs/MODULAR_MIGRATIONS.md)** — Flyway modular migrations
 
 ## Project structure
 

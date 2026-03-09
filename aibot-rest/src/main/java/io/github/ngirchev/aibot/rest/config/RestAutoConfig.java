@@ -21,8 +21,8 @@ import io.github.ngirchev.aibot.rest.repository.RestUserRepository;
 import io.github.ngirchev.aibot.rest.service.ChatService;
 import io.github.ngirchev.aibot.rest.service.RestAuthorizationService;
 import io.github.ngirchev.aibot.rest.service.RestMessageService;
-import io.github.ngirchev.aibot.rest.service.RestUserPriorityService;
 import io.github.ngirchev.aibot.rest.service.RestUserService;
+import io.github.ngirchev.aibot.rest.service.RestUsersStartupInitializer;
 import io.github.ngirchev.aibot.rest.exception.RestExceptionHandler;
 
 /**
@@ -41,23 +41,19 @@ public class RestAutoConfig {
 
     @Bean
     @ConditionalOnMissingBean
-    public RestProperties restProperties() {
-        return new RestProperties();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public IUserPriorityService restUserPriorityService(
-            IUserPriorityService defaultUserPriorityService) {
-        return new RestUserPriorityService(defaultUserPriorityService);
+    public RestUsersStartupInitializer restUsersStartupInitializer(
+            RestUserService restUserService,
+            RestProperties restProperties) {
+        return new RestUsersStartupInitializer(restUserService, restProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public RestUserService restUserService(
             RestUserRepository restUserRepository,
-            AssistantRoleService assistantRoleService) {
-        return new RestUserService(restUserRepository, assistantRoleService);
+            AssistantRoleService assistantRoleService,
+            RestProperties restProperties) {
+        return new RestUserService(restUserRepository, assistantRoleService, restProperties);
     }
 
     @Bean
@@ -133,12 +129,14 @@ public class RestAutoConfig {
             ConversationThreadRepository conversationThreadRepository,
             ConversationThreadService conversationThreadService,
             AIBotMessageRepository messageRepository,
-            CommandSyncService commandSyncService) {
+            CommandSyncService commandSyncService,
+            IUserPriorityService userPriorityService) {
         return new ChatService(
                 conversationThreadRepository,
                 conversationThreadService,
                 messageRepository,
-                commandSyncService);
+                commandSyncService,
+                userPriorityService);
     }
 
     @Bean

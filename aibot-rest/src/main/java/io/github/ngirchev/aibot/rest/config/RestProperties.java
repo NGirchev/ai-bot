@@ -42,6 +42,11 @@ public class RestProperties {
         parseLevelConfig(access.getAdmin(), "admin");
         parseLevelConfig(access.getVip(), "vip");
         parseLevelConfig(access.getRegular(), "regular");
+
+        log.info("REST access config loaded: adminEmails={}, vipEmails={}, regularEmails={}",
+                access.getAdmin() != null ? access.getAdmin().getEmails() : Set.of(),
+                access.getVip() != null ? access.getVip().getEmails() : Set.of(),
+                access.getRegular() != null ? access.getRegular().getEmails() : Set.of());
     }
 
     private void parseLevelConfig(AccessConfig.LevelConfig level, String levelName) {
@@ -50,7 +55,7 @@ public class RestProperties {
         }
         level.setIds(level.getIds() != null ? level.getIds() : new HashSet<>());
         level.setEmails(level.getEmails() != null ? level.getEmails() : new HashSet<>());
-        log.info("REST access config {}: ids={}, emails={}", 
+        log.debug("REST access config {}: ids={}, emails={}", 
                 levelName, level.getIds(), level.getEmails());
     }
 }

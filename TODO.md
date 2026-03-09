@@ -22,3 +22,5 @@
 - [ ] Rest whitelist
 - [ ] Free router for REGULAR
 - [ ] Reply options as buttons
+- [ ] Telegram RAG Module
+- [ ] OpenCode Module
