@@ -31,34 +31,6 @@ public class TelegramProperties {
     private String username;
     
     /**
-     * Comma-separated Telegram user IDs (e.g. "123456789,987654321").
-     * Parsed into Set<Long> on initialization.
-     */
-    private String whitelistExceptions;
-    
-    /**
-     * Set of Telegram user IDs to be automatically added to whitelist at application startup.
-     * Parsed from whitelistExceptions string.
-     */
-    private Set<Long> whitelistExceptionsSet = new HashSet<>();
-    
-    /**
-     * Comma-separated Telegram group/channel IDs (e.g. "-1000000000000,@mygroup").
-     * Members of these groups/channels get access to the bot.
-     * If a user is not in whitelist but is a member of one of these groups/channels,
-     * they are automatically added to whitelist.
-     * Can be numeric ID (e.g. -1000000000000) or username (e.g. @mygroup).
-     * Parsed into Set<String> on initialization.
-     */
-    private String whitelistChannelIdExceptions;
-    
-    /**
-     * Set of Telegram group/channel IDs whose members get access to the bot.
-     * Parsed from whitelistChannelIdExceptions string.
-     */
-    private Set<String> whitelistChannelIdExceptionsSet = new HashSet<>();
-    
-    /**
      * Access configuration for user priority levels.
      * Supports both environment variables and direct configuration.
      */
@@ -157,36 +129,6 @@ public class TelegramProperties {
     
     @PostConstruct
     public void parseWhitelistExceptions() {
-        if (whitelistExceptions == null || whitelistExceptions.trim().isEmpty()) {
-            whitelistExceptionsSet = new HashSet<>();
-            log.info("whitelist-exceptions is empty or null, exception list will be empty");
-        } else {
-            try {
-                whitelistExceptionsSet = Arrays.stream(whitelistExceptions.split(","))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .map(Long::parseLong)
-                        .collect(Collectors.toSet());
-                log.info("Parsed whitelist-exceptions: '{}' -> {}", whitelistExceptions, whitelistExceptionsSet);
-            } catch (NumberFormatException e) {
-                log.warn("Failed to parse whitelist-exceptions '{}': {}. Exception list will be empty", 
-                        whitelistExceptions, e.getMessage());
-                whitelistExceptionsSet = new HashSet<>();
-            }
-        }
-        
-        if (whitelistChannelIdExceptions == null || whitelistChannelIdExceptions.trim().isEmpty()) {
-            whitelistChannelIdExceptionsSet = new HashSet<>();
-            log.info("whitelist-channel-id-exceptions is empty or null, channel list will be empty");
-        } else {
-            whitelistChannelIdExceptionsSet = Arrays.stream(whitelistChannelIdExceptions.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toSet());
-            log.info("Parsed whitelist-channel-id-exceptions: '{}' -> {}", 
-                    whitelistChannelIdExceptions, whitelistChannelIdExceptionsSet);
-        }
-        
         parseAccessConfig();
     }
     
@@ -205,5 +147,25 @@ public class TelegramProperties {
         level.setEmails(level.getEmails() != null ? level.getEmails() : new HashSet<>());
         log.info("Access config {}: ids={}, channels={}, emails={}", 
                 levelName, level.getIds(), level.getChannels(), level.getEmails());
+    }
+
+    /**
+     * Returns a combined set of all configured access channels across admin, vip and regular levels.
+     * This is used by TelegramWhitelistService to check membership in any configured group/channel.
+     */
+    public Set<String> getAllAccessChannels() {
+        Set<String> result = new HashSet<>();
+        if (access != null) {
+            addChannels(result, access.getAdmin());
+            addChannels(result, access.getVip());
+            addChannels(result, access.getRegular());
+        }
+        return result;
+    }
+
+    private void addChannels(Set<String> target, AccessConfig.LevelConfig level) {
+        if (level != null && level.getChannels() != null) {
+            target.addAll(level.getChannels());
+        }
     }
 } 

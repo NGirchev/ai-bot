@@ -20,7 +20,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
         "org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration",
         "org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration",
         "org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration",
-        "org.springframework.ai.ollama.OllamaAutoConfiguration"
+        "org.springframework.ai.model.ollama.autoconfigure.OllamaAutoConfiguration"
 })
 public class ITTestConfiguration {
 }

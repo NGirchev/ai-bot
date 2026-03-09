@@ -220,8 +220,6 @@ class TelegramMockGatewayIT {
             var props = new TelegramProperties();
             props.setToken("test-token");
             props.setUsername("test-bot");
-            props.setWhitelistExceptions("");
-            props.setWhitelistChannelIdExceptions("");
             props.setMaxMessageLength(4096);
             return props;
         }

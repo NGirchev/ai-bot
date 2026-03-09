@@ -61,8 +61,6 @@ ai-bot:
     enabled: true
     username: ${TELEGRAM_USERNAME}
     token: ${TELEGRAM_TOKEN}
-    whitelist-exceptions: ${WHITELIST_EXCEPTIONS:}
-    whitelist-channel-id-exceptions: ${WHITELIST_CHANNEL_ID_EXCEPTIONS:}
     # User access configuration via environment variables
     # Format: comma-separated lists
     access:

@@ -50,7 +50,7 @@ public class TelegramServiceConfig {
                 whitelistRepository,
                 telegramBot,
                 telegramUserRepository,
-                telegramProperties.getWhitelistChannelIdExceptionsSet());
+                telegramProperties.getAllAccessChannels());
     }
 
     @Bean
@@ -83,15 +83,6 @@ public class TelegramServiceConfig {
                 coreCommonProperties,
                 storagePropertiesProvider,
                 telegramMessageServiceSelfProvider);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public TelegramWhitelistInitializer telegramWhitelistInitializer(
-            TelegramWhitelistService whitelistService,
-            TelegramWhitelistRepository whitelistRepository,
-            TelegramProperties telegramProperties) {
-        return new TelegramWhitelistInitializer(whitelistService, whitelistRepository, telegramProperties);
     }
 
     @Bean

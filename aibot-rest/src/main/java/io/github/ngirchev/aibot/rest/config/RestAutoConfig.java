@@ -48,9 +48,8 @@ public class RestAutoConfig {
     @Bean
     @ConditionalOnMissingBean
     public IUserPriorityService restUserPriorityService(
-            IUserPriorityService defaultUserPriorityService,
-            RestProperties restProperties) {
-        return new RestUserPriorityService(defaultUserPriorityService, restProperties);
+            IUserPriorityService defaultUserPriorityService) {
+        return new RestUserPriorityService(defaultUserPriorityService);
     }
 
     @Bean
