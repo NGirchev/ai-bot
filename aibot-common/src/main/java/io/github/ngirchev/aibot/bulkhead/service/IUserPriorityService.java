@@ -9,10 +9,20 @@ import io.github.ngirchev.aibot.bulkhead.model.UserPriority;
 public interface IUserPriorityService {
     
     /**
-     * Resolves user priority by user id.
+     * Resolves user priority by user id (Telegram).
      *
-     * @param userId user identifier
+     * @param userId user identifier (Telegram user ID)
      * @return user priority (ADMIN, VIP, REGULAR or BLOCKED)
      */
     UserPriority getUserPriority(Long userId);
+
+    /**
+     * Resolves user priority by email (REST).
+     *
+     * @param email user email
+     * @return user priority (ADMIN, VIP, REGULAR or BLOCKED)
+     */
+    default UserPriority getUserPriorityByEmail(String email) {
+        return UserPriority.REGULAR;
+    }
 }

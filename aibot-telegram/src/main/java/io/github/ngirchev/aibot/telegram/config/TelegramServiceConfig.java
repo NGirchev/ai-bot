@@ -127,9 +127,10 @@ public class TelegramServiceConfig {
             CommandHandlerRegistry registry,
             PriorityRequestExecutor priorityRequestExecutor,
             TelegramUserService userService,
-            TelegramWhitelistService whitelistService) {
+            TelegramWhitelistService whitelistService,
+            TelegramProperties telegramProperties) {
         return new TelegramCommandSyncService(meterRegistry, registry, priorityRequestExecutor,
-                new DefaultUserPriorityService(userService, whitelistService));
+                new TelegramUserPriorityService(userService, whitelistService, telegramProperties));
     }
 
     @Bean

@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import io.github.ngirchev.aibot.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.aibot.common.ai.factory.AICommandFactoryRegistry;
 import io.github.ngirchev.aibot.common.config.CoreCommonProperties;
 import io.github.ngirchev.aibot.common.repository.AIBotMessageRepository;
@@ -19,6 +21,7 @@ import io.github.ngirchev.aibot.rest.repository.RestUserRepository;
 import io.github.ngirchev.aibot.rest.service.ChatService;
 import io.github.ngirchev.aibot.rest.service.RestAuthorizationService;
 import io.github.ngirchev.aibot.rest.service.RestMessageService;
+import io.github.ngirchev.aibot.rest.service.RestUserPriorityService;
 import io.github.ngirchev.aibot.rest.service.RestUserService;
 import io.github.ngirchev.aibot.rest.exception.RestExceptionHandler;
 
@@ -28,12 +31,27 @@ import io.github.ngirchev.aibot.rest.exception.RestExceptionHandler;
  * Active only when REST module is enabled (ai-bot.rest.enabled=true).
  */
 @AutoConfiguration
+@EnableConfigurationProperties(RestProperties.class)
 @Import({
         RestJpaConfig.class,
         RestFlywayConfig.class
 })
 @ConditionalOnProperty(name = "ai-bot.rest.enabled", havingValue = "true")
 public class RestAutoConfig {
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RestProperties restProperties() {
+        return new RestProperties();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IUserPriorityService restUserPriorityService(
+            IUserPriorityService defaultUserPriorityService,
+            RestProperties restProperties) {
+        return new RestUserPriorityService(defaultUserPriorityService, restProperties);
+    }
 
     @Bean
     @ConditionalOnMissingBean

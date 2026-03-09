@@ -31,7 +31,7 @@ public class TelegramProperties {
     private String username;
     
     /**
-     * Comma-separated Telegram user IDs (e.g. "350001752,123456789").
+     * Comma-separated Telegram user IDs (e.g. "123456789,987654321").
      * Parsed into Set<Long> on initialization.
      */
     private String whitelistExceptions;
@@ -59,9 +59,31 @@ public class TelegramProperties {
     private Set<String> whitelistChannelIdExceptionsSet = new HashSet<>();
     
     /**
+     * Access configuration for user priority levels.
+     * Supports both environment variables and direct configuration.
+     */
+    private AccessConfig access = new AccessConfig();
+    
+    /**
      * Enable/disable settings for command handlers.
      */
     private Commands commands = new Commands();
+
+    @Getter
+    @Setter
+    public static class AccessConfig {
+        private LevelConfig admin = new LevelConfig();
+        private LevelConfig vip = new LevelConfig();
+        private LevelConfig regular = new LevelConfig();
+
+        @Getter
+        @Setter
+        public static class LevelConfig {
+            private Set<Long> ids = new HashSet<>();
+            private Set<String> channels = new HashSet<>();
+            private Set<String> emails = new HashSet<>();
+        }
+    }
 
     /**
      * HTTP read timeout for long polling (seconds). Must be strictly greater than get-updates-timeout-seconds.
@@ -164,5 +186,24 @@ public class TelegramProperties {
             log.info("Parsed whitelist-channel-id-exceptions: '{}' -> {}", 
                     whitelistChannelIdExceptions, whitelistChannelIdExceptionsSet);
         }
+        
+        parseAccessConfig();
+    }
+    
+    private void parseAccessConfig() {
+        parseLevelConfig(access.getAdmin(), "admin");
+        parseLevelConfig(access.getVip(), "vip");
+        parseLevelConfig(access.getRegular(), "regular");
+    }
+    
+    private void parseLevelConfig(AccessConfig.LevelConfig level, String levelName) {
+        if (level == null) {
+            return;
+        }
+        level.setIds(level.getIds() != null ? level.getIds() : new HashSet<>());
+        level.setChannels(level.getChannels() != null ? level.getChannels() : new HashSet<>());
+        level.setEmails(level.getEmails() != null ? level.getEmails() : new HashSet<>());
+        log.info("Access config {}: ids={}, channels={}, emails={}", 
+                levelName, level.getIds(), level.getChannels(), level.getEmails());
     }
 } 
