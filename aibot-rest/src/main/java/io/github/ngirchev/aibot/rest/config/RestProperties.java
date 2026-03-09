@@ -2,7 +2,6 @@ package io.github.ngirchev.aibot.rest.config;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
