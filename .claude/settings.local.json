@@ -9,7 +9,8 @@
       "Bash(mvn --version 2>&1 | head -5)",
       "Bash(mvn test:*)",
       "Bash(mvn install:*)",
-      "Bash(rm \"C:/Work/IdeaProjects/ai-bot/aibot-app/target/test-classes/io/github/ngirchev/aibot/RepositoryTestConfig.class\" && cd \"C:/Work/IdeaProjects/ai-bot\" && ./mvnw clean test -am -pl aibot-app -Dtest=TelegramUserRepositoryIT -Dsurefire.failIfNoSpecifiedTests=false 2>&1)"
+      "Bash(rm \"C:/Work/IdeaProjects/ai-bot/aibot-app/target/test-classes/io/github/ngirchev/aibot/RepositoryTestConfig.class\" && cd \"C:/Work/IdeaProjects/ai-bot\" && ./mvnw clean test -am -pl aibot-app -Dtest=TelegramUserRepositoryIT -Dsurefire.failIfNoSpecifiedTests=false 2>&1)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

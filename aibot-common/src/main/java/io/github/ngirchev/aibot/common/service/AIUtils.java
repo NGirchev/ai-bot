@@ -457,7 +457,7 @@ public class AIUtils {
                         }
                     })
                     .doOnNext(cr -> {
-                        log.debug("Received chunk: {} {}", cr.getResult().getOutput().getText(), cr);
+                        log.debug("Received streaming chunk: {}", cr);
                         lastResponse.set(cr);
                         totalChunks.incrementAndGet();
                     })

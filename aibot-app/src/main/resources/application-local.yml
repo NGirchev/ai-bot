@@ -12,6 +12,20 @@ ai-bot:
           cooldown5xx: 2m
       models:
         list:
+          - name: "qwen3.5"
+            capabilities:
+              - AUTO
+              - CHAT
+              - TOOL_CALLING
+              - SUMMARIZATION
+              - VISION
+            provider-type: OLLAMA
+            priority: 1
+          - name: "gemma3:1b"
+            capabilities:
+              - EMBEDDING
+            provider-type: OLLAMA
+            priority: 1
           - name: "openrouter/auto"
             capabilities:
               - AUTO

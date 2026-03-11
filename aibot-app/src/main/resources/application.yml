@@ -188,7 +188,7 @@ ai-bot:
               - VISION
             provider-type: OPENAI
             priority: 3
-          - name: "qwen2.5:7b"
+          - name: "qwen3.5"
             capabilities:
               - CHAT
               - TOOL_CALLING
