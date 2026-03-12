@@ -195,8 +195,13 @@ class CommandSyncServiceTest {
             try {
                 var r1 = supplyAsync(() -> service.syncAndHandle(new TestCommand(regular1Id, TestCommandType.TEST), priorities::get), executor);
                 var r2 = supplyAsync(() -> service.syncAndHandle(new TestCommand(regular2Id, TestCommandType.TEST), priorities::get), executor);
-                    Thread.sleep(100);
-                    assertEquals(1, countOfRegularInWork.get());
+
+                int waitedMs = 0;
+                while (countOfRegularInWork.get() == 0 && waitedMs < 1000) {
+                    Thread.sleep(10);
+                    waitedMs += 10;
+                }
+                assertEquals(1, countOfRegularInWork.get());
                 var v1 = supplyAsync(() -> service.syncAndHandle(new TestCommand(vipUser1Id, TestCommandType.TEST), priorities::get), executor);
                 var v2 = supplyAsync(() -> service.syncAndHandle(new TestCommand(vipUser2Id, TestCommandType.TEST), priorities::get), executor);
                 var v3 = supplyAsync(() -> service.syncAndHandle(new TestCommand(vipUser3Id, TestCommandType.TEST), priorities::get), executor);
