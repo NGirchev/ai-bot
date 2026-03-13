@@ -10,7 +10,11 @@
       "Bash(mvn test:*)",
       "Bash(mvn install:*)",
       "Bash(rm \"C:/Work/IdeaProjects/ai-bot/aibot-app/target/test-classes/io/github/ngirchev/aibot/RepositoryTestConfig.class\" && cd \"C:/Work/IdeaProjects/ai-bot\" && ./mvnw clean test -am -pl aibot-app -Dtest=TelegramUserRepositoryIT -Dsurefire.failIfNoSpecifiedTests=false 2>&1)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(cd \"C:\\\\Work\\\\IdeaProjects\\\\ai-bot\" && ./mvnw clean test -pl aibot-common,aibot-telegram -Dtest=TelegramBotTest -q 2>&1 | tail -20)",
+      "Bash(cd \"C:\\\\Work\\\\IdeaProjects\\\\ai-bot\" && ./mvnw clean install -pl aibot-common -q 2>&1 | tail -5 && ./mvnw test -pl aibot-telegram -Dtest=TelegramBotTest -q 2>&1 | tail -20)",
+      "Bash(cd \"C:\\\\Work\\\\IdeaProjects\\\\ai-bot\" && ./mvnw compile -pl aibot-spring-ai -q 2>&1 | tail -10)",
+      "Bash(cd \"C:\\\\Work\\\\IdeaProjects\\\\ai-bot\" && ./mvnw compile -pl aibot-common,aibot-telegram -q 2>&1 | tail -10)"
     ]
   }
 }

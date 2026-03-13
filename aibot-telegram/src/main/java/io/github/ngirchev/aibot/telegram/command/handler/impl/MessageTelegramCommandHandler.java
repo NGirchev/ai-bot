@@ -307,6 +307,9 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
         metadata.put(USER_ID_FIELD, telegramUser.getId().toString());
         // For backward compatibility also pass role (for fallback to DefaultAiCommandFactory)
         metadata.put(ROLE_FIELD, assistantRoleContent);
+        if (telegramUser.getLanguageCode() != null) {
+            metadata.put(LANGUAGE_CODE_FIELD, telegramUser.getLanguageCode());
+        }
         return metadata;
     }
 
