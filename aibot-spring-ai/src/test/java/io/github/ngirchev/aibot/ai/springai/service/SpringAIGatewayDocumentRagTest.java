@@ -101,7 +101,8 @@ class SpringAIGatewayDocumentRagTest {
                 chatMemoryProvider,
                 ragProperties,
                 docProvider,
-                ragProvider
+                ragProvider,
+                null
         );
     }
 
