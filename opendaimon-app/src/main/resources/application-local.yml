@@ -15,6 +15,7 @@ open-daimon:
         list:
           - name: "qwen3.5"
             capabilities:
+              - AUTO
               - CHAT
               - TOOL_CALLING
               - SUMMARIZATION
