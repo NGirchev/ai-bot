@@ -126,7 +126,7 @@ ai-bot:
             key: ${OPENROUTER_KEY}
             url: https://openrouter.ai/api
           refresh-initial-delay: 10s
-          refresh-interval: 1h
+          refresh-interval: 24h
           filters:
             include-model-ids:
               - meta-llama/llama-3.3-70b-instruct:free
@@ -177,6 +177,17 @@ ai-bot:
       # Ollama models (run locally: ollama pull qwen2.5:7b, ollama pull qwen3-embedding:8b).
       models:
         list:
+          - name: "z-ai/glm-4.5v"
+            capabilities:
+              - AUTO
+              - CHAT
+              - TOOL_CALLING
+              - WEB
+              - SUMMARIZATION
+              - EMBEDDING
+              - VISION
+            provider-type: OPENAI
+            priority: 2
           - name: "openrouter/auto"
             capabilities:
               - AUTO
@@ -281,6 +292,7 @@ spring:
   ai:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      request-timeout: 600s
     openai:
       base-url: https://openrouter.ai/api
       api-key: ${OPENROUTER_KEY:}
