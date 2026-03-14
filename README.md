@@ -15,10 +15,41 @@
 [![Spring Boot 3.3.3](https://img.shields.io/badge/Spring%20Boot-3.3.3-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/github/license/NGirchev/open-daimon)](https://github.com/NGirchev/open-daimon/blob/master/LICENSE)
 
-Multi-module Java project for interacting with various AI services through different interfaces (Telegram, REST API, Web UI), with integration via Spring AI (OpenRouter, Ollama).
+**OpenDaimon** (formerly **ai-bot**) is a multi-module Java platform for building AI-powered chat agents and chatbots. It connects to various AI providers via **Spring AI** (OpenRouter, Ollama) and exposes them through Telegram, REST API, and Web UI. Use it as a library to assemble your own pipelines and integrations, or run the full app as a private, self-hosted chat assistant.
+
+### Who it's for
+
+Java/Spring teams building conversational AI or internal bots; developers who want one backend with Telegram, REST, and Web UI; users who prefer to run a chat agent on their own infrastructure with local or OpenRouter models and no external subscriptions; anyone who needs trusted group access (e.g. family or team) without per-user signups elsewhere.
+
+## Why OpenDaimon?
+
+### For developers and teams
+
+- **Spring AI as a library** — Integrate conversational AI into your apps with agent-style capabilities; plug in only the modules you need (Telegram, REST, UI, Spring AI).
+- **Easy to customize for business** — Configure the chat agent (prompts, roles, memory, RAG) via properties and optional extensions; no need to fork the whole project.
+- **Resilience and prioritization** — Built-in bulkhead (Resilience4j) and **two user tiers**: VIP and regular (plus admin), with configurable concurrency and wait limits.
+- **Custom dialog summarization** — Long conversations are summarized automatically; context window and triggers are configurable.
+- **Open, modular architecture** — Spring Boot auto-configurations let you enable/disable features and replace components without touching core code.
+- **Ready-made interfaces** — Telegram bot, REST API, and Web UI out of the box; **two UI languages** supported; **default and custom system roles** for the assistant.
+- **Foundation for pipelines** — Solid base for building pipelines and integrations with various systems and AI providers for chatbots and automation.
+
+### For end users (self-hosted)
+
+- **Your data stays with you** — Run the agent on **your own machine** or server. Use **OpenRouter** or **Ollama** (local models); all conversations are stored **locally** in your database. No need to send private data to third-party APIs or pay for external chat subscriptions.
+- **Trusted Telegram groups** — Add **Telegram groups** (e.g. family, friends) as trusted; members get access without signing up on other services and without dealing with per-user limits on external platforms.
+
+### Technical highlights
+
+- **Streaming** — SSE for REST and Web UI; Telegram receives replies as they are generated (chunk-by-chunk).
+- **OpenRouter intelligence** — Automatic retry with model switch on rate limits (429) or errors; capability-based model selection (chat, tool calling, web, vision); optional **free-model rotation** with scheduled registry refresh so VIP/regular users can use free OpenRouter models without manual switching.
+- **Multimodal** — Images from Telegram (or REST) stored in MinIO and sent to vision-capable models; optional **RAG** pipeline for PDFs (chunking, embeddings, similarity search).
+- **Production-ready** — Published to **Maven Central**; CI (GitHub Actions), SonarCloud, Testcontainers, Flyway migrations, Docker Compose; API keys only in environment variables (no secrets in config files).
+- **Observability** — Micrometer, Prometheus, Grafana, optional Elasticsearch/Kibana; custom metrics for request timing, bulkhead usage, and OpenRouter stream retries.
 
 ## Table of contents
 
+- [Who it's for](#who-its-for)
+- [Why OpenDaimon?](#why-opendaimon) — [For developers](#for-developers-and-teams), [For end users](#for-end-users-self-hosted), [Technical highlights](#technical-highlights)
 - [Features](#features)
 - [User Priorities and Bulkhead](#user-priorities-and-bulkhead)
 - [Requirements](#requirements)
@@ -39,10 +70,15 @@ Multi-module Java project for interacting with various AI services through diffe
 ## Features
 
 - **Multiple interfaces**: Telegram bot, REST API, Web UI
-- **Spring AI integration**: OpenRouter, Ollama, chat memory, optional RAG
-- **Modular architecture**: enable only the modules you need
-- **Request prioritization**: bulkhead (ADMIN/VIP/REGULAR) and per-user concurrency
-- **Monitoring**: Prometheus, Grafana, Elasticsearch, Kibana
+- **Spring AI integration**: OpenRouter, Ollama, chat memory, optional RAG; OpenRouter retry and free-model rotation
+- **Streaming**: SSE (REST/UI) and chunk-by-chunk replies in Telegram
+- **Multimodal**: image uploads (MinIO + vision models), optional PDF RAG (embeddings, similarity search)
+- **Modular architecture**: enable only the modules you need; extensible via Spring auto-configurations
+- **Request prioritization**: bulkhead (ADMIN/VIP/REGULAR) and per-user concurrency; trusted Telegram groups for shared access
+- **Dialog summarization**: configurable long-conversation summarization and context window
+- **Roles and i18n**: default and custom system roles; two UI languages
+- **Observability**: Prometheus, Grafana, Elasticsearch, Kibana; custom metrics
+- **Distribution**: Maven Central, Docker images, CI and SonarCloud
 
 ## User Priorities and Bulkhead
 
