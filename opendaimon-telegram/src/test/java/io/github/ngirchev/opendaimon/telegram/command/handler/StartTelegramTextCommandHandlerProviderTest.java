@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
+import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.bulkhead.service.PriorityRequestExecutor;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
@@ -274,6 +275,11 @@ class StartTelegramTextCommandHandlerProviderTest {
         @Bean
         public TypingIndicatorService typingIndicatorService() {
             return mock(TypingIndicatorService.class);
+        }
+
+        @Bean
+        public IUserPriorityService userPriorityService() {
+            return mock(IUserPriorityService.class);
         }
     }
 }

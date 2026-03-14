@@ -65,6 +65,7 @@ class SpringAIGatewayTest {
         modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
         modelConfig.setPriority(1);
+        when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of(modelConfig));
         when(springAIModelRegistry.getCandidatesByCapabilities(any(), any())).thenReturn(List.of(modelConfig));
         when(springAIModelRegistry.getByModelName(any())).thenReturn(java.util.Optional.of(modelConfig));
 
@@ -214,8 +215,8 @@ class SpringAIGatewayTest {
     @Test
     void generateResponse_command_emptyCandidates_usesAutoFallback() {
         when(springAIProperties.getMock()).thenReturn(false);
-        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.CHAT)), any())).thenReturn(List.of());
-        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any())).thenReturn(List.of(modelConfig));
+        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.CHAT)), any(), any())).thenReturn(List.of());
+        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any(), any())).thenReturn(List.of(modelConfig));
         when(chatService.callChat(any(), any(), any(), any())).thenReturn(
                 new SpringAIResponse(ChatResponse.builder()
                         .generations(List.of(new Generation(new AssistantMessage("OK"))))
@@ -230,7 +231,7 @@ class SpringAIGatewayTest {
     @Test
     void generateResponse_command_noCandidatesAndNoAutoFallback_throws() {
         when(springAIProperties.getMock()).thenReturn(false);
-        when(springAIModelRegistry.getCandidatesByCapabilities(any(), any())).thenReturn(List.of());
+        when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of());
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT), 0.7, 1000, "Sys", "User", false, Map.of(), Map.of());
         RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.generateResponse(command));

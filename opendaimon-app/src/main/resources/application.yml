@@ -99,6 +99,7 @@ open-daimon:
       history-enabled: true
       threads-enabled: true
       language-enabled: true
+      model-enabled: true
   rest:
     enabled: true
     # User access configuration via environment variables

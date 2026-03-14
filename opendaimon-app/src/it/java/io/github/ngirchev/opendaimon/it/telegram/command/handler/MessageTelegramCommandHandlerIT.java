@@ -1,6 +1,8 @@
 package io.github.ngirchev.opendaimon.it.telegram.command.handler;
 
 import io.github.ngirchev.opendaimon.it.ITTestConfiguration;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
+import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -54,6 +56,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -244,14 +247,31 @@ class MessageTelegramCommandHandlerIT {
 
         @Bean
         @Primary
-        public java.util.concurrent.ScheduledExecutorService typingIndicatorScheduledExecutor() {
-            return mock(java.util.concurrent.ScheduledExecutorService.class);
+        public ScheduledExecutorService typingIndicatorScheduledExecutor() {
+            return mock(ScheduledExecutorService.class);
         }
 
         @Bean
         @Primary
         public TypingIndicatorService typingIndicatorService() {
             return mock(TypingIndicatorService.class);
+        }
+
+        @Bean
+        public UserModelPreferenceService userModelPreferenceService() {
+            return new UserModelPreferenceService();
+        }
+
+        @Bean
+        @Primary
+        public PersistentKeyboardService persistentKeyboardService(
+                UserModelPreferenceService userModelPreferenceService,
+                CoreCommonProperties coreCommonProperties,
+                ObjectProvider<TelegramBot> telegramBotProvider,
+                TelegramProperties telegramProperties
+        ) {
+            return new PersistentKeyboardService(
+                    userModelPreferenceService, coreCommonProperties, telegramBotProvider, telegramProperties);
         }
 
         @Bean
@@ -266,7 +286,9 @@ class MessageTelegramCommandHandlerIT {
                 AIGatewayRegistry aiGatewayRegistry,
                 OpenDaimonMessageService messageService,
                 AICommandFactoryRegistry aiCommandFactoryRegistry,
-                TelegramProperties telegramProperties) {
+                TelegramProperties telegramProperties,
+                UserModelPreferenceService userModelPreferenceService,
+                PersistentKeyboardService persistentKeyboardService) {
             return new MessageTelegramCommandHandler(
                     telegramBotProvider,
                     typingIndicatorService,
@@ -277,7 +299,9 @@ class MessageTelegramCommandHandlerIT {
                     aiGatewayRegistry,
                     messageService,
                     aiCommandFactoryRegistry,
-                    telegramProperties);
+                    telegramProperties,
+                    userModelPreferenceService,
+                    persistentKeyboardService);
         }
     }
 

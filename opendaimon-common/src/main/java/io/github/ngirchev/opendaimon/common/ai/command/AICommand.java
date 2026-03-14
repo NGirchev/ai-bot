@@ -7,6 +7,7 @@ import java.util.Set;
 
 public interface AICommand {
     String ROLE_FIELD = "role";
+    String PREFERRED_MODEL_ID_FIELD = "preferredModelId";
     String THREAD_KEY_FIELD = "threadKey";
     String ASSISTANT_ROLE_ID_FIELD = "assistantRoleId";
     String USER_ID_FIELD = "userId";

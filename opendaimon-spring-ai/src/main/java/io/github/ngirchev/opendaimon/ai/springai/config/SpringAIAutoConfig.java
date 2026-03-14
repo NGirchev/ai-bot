@@ -32,6 +32,7 @@ import io.github.ngirchev.opendaimon.ai.springai.rest.RestClientLogCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.rest.WebClientLogCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.service.DocumentProcessingService;
 import io.github.ngirchev.opendaimon.ai.springai.rag.FileRAGService;
+import io.github.ngirchev.opendaimon.ai.springai.service.ModelListAIGateway;
 import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIGateway;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterRotationRegistry;
 import io.github.ngirchev.opendaimon.ai.springai.retry.SpringAIModelRegistry;
@@ -172,6 +173,13 @@ public class SpringAIAutoConfig {
                 : 1;
         int safeMaxAttempts = Math.max(maxAttempts, 1);
         return new OpenRouterModelRotationAspect(openRouterRotationRegistry, safeMaxAttempts);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ModelListAIGateway modelListAIGateway(SpringAIModelRegistry registry,
+                                                  AIGatewayRegistry aiGatewayRegistry) {
+        return new ModelListAIGateway(registry, aiGatewayRegistry);
     }
 
     @Bean

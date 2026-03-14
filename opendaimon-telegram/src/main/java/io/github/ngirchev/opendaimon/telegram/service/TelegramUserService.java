@@ -303,6 +303,7 @@ public class TelegramUserService implements IUserService {
             newUser.setIsBlocked(false);
             newUser.setIsPremium(false);
             newUser.setIsAdmin(false);
+            newUser.setLanguageCode("en");
             return telegramUserRepository.save(newUser);
         });
         applyFlagsByLevel(user, level);

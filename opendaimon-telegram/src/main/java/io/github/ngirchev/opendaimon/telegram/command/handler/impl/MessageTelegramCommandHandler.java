@@ -23,10 +23,12 @@ import io.github.ngirchev.opendaimon.telegram.command.handler.AbstractTelegramCo
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUserSession;
 import io.github.ngirchev.opendaimon.telegram.config.TelegramProperties;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramMessageService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserSessionService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
+import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +50,8 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
     private final OpenDaimonMessageService messageService;
     private final AICommandFactoryRegistry aiCommandFactoryRegistry;
     private final TelegramProperties telegramProperties;
+    private final UserModelPreferenceService userModelPreferenceService;
+    private final PersistentKeyboardService persistentKeyboardService;
 
     @SuppressWarnings("java:S107")
     public MessageTelegramCommandHandler(ObjectProvider<TelegramBot> telegramBotProvider,
@@ -59,7 +63,9 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                                          AIGatewayRegistry aiGatewayRegistry,
                                          OpenDaimonMessageService messageService,
                                          AICommandFactoryRegistry aiCommandFactoryRegistry,
-                                         TelegramProperties telegramProperties) {
+                                         TelegramProperties telegramProperties,
+                                         UserModelPreferenceService userModelPreferenceService,
+                                         PersistentKeyboardService persistentKeyboardService) {
         super(telegramBotProvider, typingIndicatorService, messageLocalizationService);
         this.telegramUserService = telegramUserService;
         this.telegramUserSessionService = telegramUserSessionService;
@@ -68,6 +74,8 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
         this.messageService = messageService;
         this.aiCommandFactoryRegistry = aiCommandFactoryRegistry;
         this.telegramProperties = telegramProperties;
+        this.userModelPreferenceService = userModelPreferenceService;
+        this.persistentKeyboardService = persistentKeyboardService;
     }
 
     @Override
@@ -143,6 +151,7 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             if (ctx.responseTextOpt().isPresent()) {
                 saveAndSendSuccessResponse(command, telegramUser, message, aiResponse, ctx, modelCapabilities,
                         assistantRoleContent, startTime);
+                persistentKeyboardService.sendKeyboard(command.telegramId(), telegramUser.getId(), thread);
             } else {
                 sendEmptyContentError(command, telegramUser, message, ctx, modelCapabilities, assistantRoleContent);
                 return null;
@@ -310,6 +319,8 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
         if (telegramUser.getLanguageCode() != null) {
             metadata.put(LANGUAGE_CODE_FIELD, telegramUser.getLanguageCode());
         }
+        userModelPreferenceService.getPreferredModel(telegramUser.getId())
+                .ifPresent(modelId -> metadata.put(PREFERRED_MODEL_ID_FIELD, modelId));
         return metadata;
     }
 

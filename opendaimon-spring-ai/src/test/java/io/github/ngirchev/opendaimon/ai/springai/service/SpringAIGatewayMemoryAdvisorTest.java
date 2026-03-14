@@ -115,6 +115,8 @@ class SpringAIGatewayMemoryAdvisorTest {
                 .thenReturn(Optional.of(modelConfig));
         lenient().when(springAIModelType.getByCapabilities(eq(Set.of(ModelCapabilities.AUTO))))
                 .thenReturn(Optional.of(modelConfig));
+        lenient().when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any()))
+                .thenReturn(List.of(modelConfig));
         lenient().when(springAIModelRegistry.getCandidatesByCapabilities(any(), any()))
                 .thenReturn(List.of(modelConfig));
         lenient().when(springAIModelRegistry.getByModelName(any())).thenReturn(Optional.of(modelConfig));

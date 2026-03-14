@@ -126,9 +126,11 @@ public class SpringAIGateway implements AIGateway {
 
     private AIResponse executeChatWithOptions(OpenDaimonChatOptions chatOptions, AICommand command, List<Message> messages) {
         UserPriority userPriority = resolveUserPriority(command);
-        List<SpringAIModelConfig> candidates = springAIModelRegistry.getCandidatesByCapabilities(command.modelCapabilities(), null, userPriority);
+        String preferredModelId = command.metadata() != null
+                ? command.metadata().get(AICommand.PREFERRED_MODEL_ID_FIELD) : null;
+        List<SpringAIModelConfig> candidates = springAIModelRegistry.getCandidatesByCapabilities(command.modelCapabilities(), preferredModelId, userPriority);
         if (candidates.isEmpty()) {
-            candidates = springAIModelRegistry.getCandidatesByCapabilities(Set.of(ModelCapabilities.AUTO), null, userPriority);
+            candidates = springAIModelRegistry.getCandidatesByCapabilities(Set.of(ModelCapabilities.AUTO), preferredModelId, userPriority);
         }
         SpringAIModelConfig modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
         if (modelConfig == null) {

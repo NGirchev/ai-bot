@@ -174,6 +174,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                 telegramCommandType = new TelegramCommandType(TelegramCommand.LANGUAGE);
             } else if ("ERROR".equals(callbackData) || "IMPROVEMENT".equals(callbackData)) {
                 telegramCommandType = new TelegramCommandType(TelegramCommand.BUGREPORT);
+            } else if (callbackData.startsWith("MODEL_")) {
+                telegramCommandType = new TelegramCommandType(TelegramCommand.MODEL);
             }
         }
         if (telegramCommandType == null) {
@@ -202,6 +204,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             String commandText = stripped.substring(0, spaceIndex == -1 ? stripped.length() : spaceIndex);
             telegramCommandType = new TelegramCommandType(commandText);
             userText = stripped.replace(commandText, "");
+        } else if (stripped.startsWith(TelegramCommand.MODEL_KEYBOARD_PREFIX)
+                || stripped.startsWith(TelegramCommand.CONTEXT_KEYBOARD_PREFIX)) {
+            telegramCommandType = new TelegramCommandType(TelegramCommand.MODEL);
+            userText = stripped;
         } else {
             TelegramUserSession session = userService.getOrCreateSession(update.getMessage().getFrom());
             if (session.getBotStatus() != null) {

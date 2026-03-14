@@ -2,6 +2,8 @@ package io.github.ngirchev.opendaimon.it.telegram;
 
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.command.ICommandType;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
+import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -303,6 +305,22 @@ class TelegramMockGatewayIT {
         }
 
         @Bean
+        public UserModelPreferenceService userModelPreferenceService() {
+            return new UserModelPreferenceService();
+        }
+
+        @Bean
+        public PersistentKeyboardService persistentKeyboardService(
+                UserModelPreferenceService userModelPreferenceService,
+                CoreCommonProperties coreCommonProperties,
+                ObjectProvider<TelegramBot> telegramBotProvider,
+                TelegramProperties telegramProperties
+        ) {
+            return new PersistentKeyboardService(
+                    userModelPreferenceService, coreCommonProperties, telegramBotProvider, telegramProperties);
+        }
+
+        @Bean
         public MessageTelegramCommandHandler messageTelegramCommandHandler(
                 ObjectProvider<TelegramBot> telegramBotProvider,
                 TypingIndicatorService typingIndicatorService,
@@ -313,7 +331,9 @@ class TelegramMockGatewayIT {
                 AIGatewayRegistry aiGatewayRegistry,
                 OpenDaimonMessageService messageService,
                 AICommandFactoryRegistry aiCommandFactoryRegistry,
-                TelegramProperties telegramProperties
+                TelegramProperties telegramProperties,
+                UserModelPreferenceService userModelPreferenceService,
+                PersistentKeyboardService persistentKeyboardService
         ) {
             return new MessageTelegramCommandHandler(
                     telegramBotProvider,
@@ -325,7 +345,9 @@ class TelegramMockGatewayIT {
                     aiGatewayRegistry,
                     messageService,
                     aiCommandFactoryRegistry,
-                    telegramProperties
+                    telegramProperties,
+                    userModelPreferenceService,
+                    persistentKeyboardService
             );
         }
     }
