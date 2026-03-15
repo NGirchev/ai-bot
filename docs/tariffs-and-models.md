@@ -24,7 +24,7 @@ In [DefaultAICommandFactory](../opendaimon-common/src/main/java/io/github/ngirch
 | Priority   | Capabilities | Extra |
 |-----------|---------------|-------|
 | **ADMIN** | `AUTO` | Single capability: “any suitable model”; in practice resolves to openrouter/auto |
-| **VIP**   | `CHAT`, `MODERATION`, `TOOL_CALLING`, `WEB` | Request body gets `max_price: 0` (free-only) |
+| **VIP**   | `CHAT`, `TOOL_CALLING`, `WEB` | Request body gets `max_price: 0` (free-only) |
 | **REGULAR** | `CHAT` | Chat only |
 
 If the request has image attachments, **VISION** is added to the set for all priorities.
@@ -48,7 +48,7 @@ Only free models from the API whose id is in this list (and passes other filters
 
 ## 4. Models and capabilities (reference)
 
-**Capability keys:** CHAT, TOOL_CALLING, WEB, SUMMARIZATION, STRUCTURED_OUTPUT, VISION, EMBEDDING, MODERATION, FREE. AUTO = “any”; used for openrouter/auto.
+**Capability keys:** CHAT, TOOL_CALLING, WEB, SUMMARIZATION, STRUCTURED_OUTPUT, VISION, EMBEDDING, FREE. AUTO = “any”; used for openrouter/auto.
 
 **Top 3 OpenRouter free (in `models.list`):**
 
@@ -97,7 +97,7 @@ Only free models from the API whose id is in this list (and passes other filters
 ## 5. Summary
 
 - **Tariffs** = user priority: ADMIN / VIP / REGULAR (and BLOCKED), derived from admin flag, whitelist, and channel membership.
-- **Tariff only affects the capability set** (AUTO for ADMIN, CHAT+TOOL_CALLING+WEB+MODERATION for VIP, CHAT for REGULAR); for VIP the request also gets `max_price: 0`.
+- **Tariff only affects the capability set** (AUTO for ADMIN, CHAT+TOOL_CALLING+WEB for VIP, CHAT for REGULAR); for VIP the request also gets `max_price: 0`.
 - **Free models** = OpenRouter models with zero pricing that pass the `include-model-ids` (and other) filters; one shared set for all users, not a per-model search.
 
 ## Related

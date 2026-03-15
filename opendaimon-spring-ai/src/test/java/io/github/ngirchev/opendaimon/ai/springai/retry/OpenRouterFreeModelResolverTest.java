@@ -65,7 +65,7 @@ class OpenRouterFreeModelResolverTest {
         ranking.setCooldown5xx(Duration.ofMinutes(2));
         properties.setRanking(ranking);
 
-        properties.setFilters(new OpenRouterModelsProperties.Filters());
+        // no whitelist/blacklist — all free models pass through
 
         when(restTemplate.exchange(
                 contains("/v1/models"),

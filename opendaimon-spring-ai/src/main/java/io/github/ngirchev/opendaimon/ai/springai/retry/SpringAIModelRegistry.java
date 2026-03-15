@@ -129,11 +129,55 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         config.setCapabilities(caps);
         config.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         config.setPriority(OPENROUTER_FREE_PRIORITY);
-        OpenRouterModelsProperties.Filters filters = openRouterProperties.getFilters();
-        if (filters != null && filters.getAllowedRoles() != null && !filters.getAllowedRoles().isEmpty()) {
-            config.setAllowedRoles(new ArrayList<>(filters.getAllowedRoles()));
+        List<UserPriority> allowedRoles = computeAllowedRoles(entry.id());
+        if (allowedRoles != null) {
+            config.setAllowedRoles(allowedRoles);
         }
         return config;
+    }
+
+    /**
+     * Determines which roles are allowed to use the given model based on whitelist entries.
+     * Returns null if all roles are allowed (no whitelist, or a matching entry has no role restriction).
+     */
+    private List<UserPriority> computeAllowedRoles(String modelId) {
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterProperties.getWhitelist();
+        if (whitelists == null || whitelists.isEmpty()) {
+            return null;
+        }
+        List<UserPriority> collected = new ArrayList<>();
+        for (OpenRouterModelsProperties.Whitelist wl : whitelists) {
+            if (!matchesWhitelist(modelId, wl)) {
+                continue;
+            }
+            if (wl.getRoles() == null || wl.getRoles().isEmpty()) {
+                return null;
+            }
+            collected.addAll(wl.getRoles());
+        }
+        if (collected.isEmpty()) {
+            return null;
+        }
+        return collected.stream().distinct().toList();
+    }
+
+    /**
+     * Returns true if modelId is matched by the given whitelist entry.
+     * A whitelist with no include rules matches everything.
+     */
+    private static boolean matchesWhitelist(String modelId, OpenRouterModelsProperties.Whitelist wl) {
+        boolean hasIncludeIds = wl.getIncludeModelIds() != null && !wl.getIncludeModelIds().isEmpty();
+        boolean hasIncludeContains = wl.getIncludeContains() != null && !wl.getIncludeContains().isEmpty();
+        if (!hasIncludeIds && !hasIncludeContains) {
+            return true;
+        }
+        if (hasIncludeIds && wl.getIncludeModelIds().contains(modelId)) {
+            return true;
+        }
+        if (hasIncludeContains && wl.getIncludeContains().stream().anyMatch(modelId::contains)) {
+            return true;
+        }
+        return false;
     }
 
     private static String normalizeOpenRouterBaseUrl(String url) {
@@ -185,26 +229,22 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
      * Explains why model was excluded by filters (which filter excluded it).
      */
     private String explainExcludedByFilter(String modelId) {
-        OpenRouterModelsProperties.Filters f = openRouterProperties.getFilters();
-        if (f == null) {
-            return "no filters configured";
-        }
-        if (f.getIncludeModelIds() != null && !f.getIncludeModelIds().isEmpty()) {
-            if (!f.getIncludeModelIds().contains(modelId)) {
-                return "not in include-model-ids (allowlist)";
+        OpenRouterModelsProperties.Blacklist blacklist = openRouterProperties.getBlacklist();
+        if (blacklist != null) {
+            if (blacklist.getExcludeModelIds() != null && blacklist.getExcludeModelIds().contains(modelId)) {
+                return "in blacklist.exclude-model-ids";
+            }
+            if (blacklist.getExcludeContains() != null && !blacklist.getExcludeContains().isEmpty()) {
+                if (blacklist.getExcludeContains().stream().anyMatch(modelId::contains)) {
+                    return "matches blacklist.exclude-contains";
+                }
             }
         }
-        if (f.getIncludeContains() != null && !f.getIncludeContains().isEmpty()) {
-            if (f.getIncludeContains().stream().noneMatch(modelId::contains)) {
-                return "does not match include-contains (allowlist by substring)";
-            }
-        }
-        if (f.getExcludeModelIds() != null && f.getExcludeModelIds().contains(modelId)) {
-            return "in exclude-model-ids (denylist)";
-        }
-        if (f.getExcludeContains() != null && !f.getExcludeContains().isEmpty()) {
-            if (f.getExcludeContains().stream().anyMatch(modelId::contains)) {
-                return "matches exclude-contains (denylist by substring)";
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterProperties.getWhitelist();
+        if (whitelists != null && !whitelists.isEmpty()) {
+            boolean matchesAny = whitelists.stream().anyMatch(wl -> matchesWhitelist(modelId, wl));
+            if (!matchesAny) {
+                return "not matched by any whitelist entry";
             }
         }
         return "filter step removed it (check filter order)";
@@ -243,29 +283,30 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         if (modelIds == null || modelIds.isEmpty()) {
             return modelIds;
         }
-        OpenRouterModelsProperties.Filters filters = openRouterProperties.getFilters();
-        if (filters == null) {
-            return modelIds;
-        }
         List<String> result = new ArrayList<>(modelIds);
-        if (filters.getIncludeModelIds() != null && !filters.getIncludeModelIds().isEmpty()) {
-            Set<String> allow = new HashSet<>(filters.getIncludeModelIds());
-            result = result.stream().filter(allow::contains).toList();
+
+        // 1. Apply blacklist first
+        OpenRouterModelsProperties.Blacklist blacklist = openRouterProperties.getBlacklist();
+        if (blacklist != null) {
+            if (blacklist.getExcludeModelIds() != null && !blacklist.getExcludeModelIds().isEmpty()) {
+                Set<String> deny = new HashSet<>(blacklist.getExcludeModelIds());
+                result = result.stream().filter(id -> !deny.contains(id)).toList();
+            }
+            if (blacklist.getExcludeContains() != null && !blacklist.getExcludeContains().isEmpty()) {
+                result = result.stream()
+                        .filter(id -> blacklist.getExcludeContains().stream().noneMatch(id::contains))
+                        .toList();
+            }
         }
-        if (filters.getIncludeContains() != null && !filters.getIncludeContains().isEmpty()) {
+
+        // 2. Apply whitelist: keep only models matched by at least one whitelist entry
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterProperties.getWhitelist();
+        if (whitelists != null && !whitelists.isEmpty()) {
             result = result.stream()
-                    .filter(id -> filters.getIncludeContains().stream().anyMatch(id::contains))
+                    .filter(id -> whitelists.stream().anyMatch(wl -> matchesWhitelist(id, wl)))
                     .toList();
         }
-        if (filters.getExcludeModelIds() != null && !filters.getExcludeModelIds().isEmpty()) {
-            Set<String> deny = new HashSet<>(filters.getExcludeModelIds());
-            result = result.stream().filter(id -> !deny.contains(id)).toList();
-        }
-        if (filters.getExcludeContains() != null && !filters.getExcludeContains().isEmpty()) {
-            result = result.stream()
-                    .filter(id -> filters.getExcludeContains().stream().noneMatch(id::contains))
-                    .toList();
-        }
+
         return result;
     }
 

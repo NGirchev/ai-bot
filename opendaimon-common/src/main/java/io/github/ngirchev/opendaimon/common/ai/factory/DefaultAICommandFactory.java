@@ -76,7 +76,7 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                 case ADMIN -> Set.of(AUTO);
                 case VIP -> {
                     body.put(MAX_PRICE, 0);
-                    yield Set.of(CHAT, MODERATION, TOOL_CALLING, WEB);
+                    yield Set.of(CHAT, TOOL_CALLING, WEB);
                 }
                 default -> Set.of(CHAT);
             };
@@ -91,14 +91,12 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                 Set<ModelCapabilities> fixedModelCapabilities;
                 if (modelDescriptionCache != null) {
                     fixedModelCapabilities = modelDescriptionCache.getCapabilities(fixedModelId);
-                    Set<ModelCapabilities> checkableCapabilities = modelCapabilities.stream()
-                            .filter(c -> c != AUTO)
-                            .collect(java.util.stream.Collectors.toSet());
-                    if (!fixedModelCapabilities.containsAll(checkableCapabilities)) {
-                        Set<ModelCapabilities> missing = checkableCapabilities.stream()
-                                .filter(c -> !fixedModelCapabilities.contains(c))
-                                .collect(java.util.stream.Collectors.toSet());
-                        throw new UnsupportedModelCapabilityException(fixedModelId, missing);
+                    // For explicitly selected models only validate VISION — routing capabilities
+                    // (TOOL_CALLING, WEB) are used for auto-selection only and must
+                    // not be enforced against a model the user has deliberately chosen.
+                    boolean needsVision = modelCapabilities.contains(VISION);
+                    if (needsVision && !fixedModelCapabilities.contains(VISION)) {
+                        throw new UnsupportedModelCapabilityException(fixedModelId, Set.of(VISION));
                     }
                 } else {
                     fixedModelCapabilities = Set.of();

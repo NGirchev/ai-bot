@@ -44,7 +44,7 @@ public class ModelListAIGateway implements AIGateway {
         UserPriority userPriority = resolveUserPriority(command);
         List<SpringAIModelConfig> candidates = springAIModelRegistry.getAllModels(userPriority);
         List<ModelInfo> models = candidates.stream()
-                .map(cfg -> new ModelInfo(cfg.getName(), new LinkedHashSet<>(cfg.getCapabilities())))
+                .map(cfg -> new ModelInfo(cfg.getName(), new LinkedHashSet<>(cfg.getCapabilities()), providerLabel(cfg.getProviderType())))
                 .toList();
         log.info("ModelListAIGateway: returning {} models for userPriority={}", models.size(), userPriority);
         return new ModelListAIResponse(models);
@@ -53,6 +53,14 @@ public class ModelListAIGateway implements AIGateway {
     @Override
     public AIResponse generateResponse(Map<String, Object> request) {
         throw new UnsupportedOperationException("ModelListAIGateway only handles typed AICommand");
+    }
+
+    private static String providerLabel(SpringAIModelConfig.ProviderType type) {
+        if (type == null) return "";
+        return switch (type) {
+            case OLLAMA -> "Ollama";
+            case OPENAI -> "OpenRouter";
+        };
     }
 
     private UserPriority resolveUserPriority(AICommand command) {

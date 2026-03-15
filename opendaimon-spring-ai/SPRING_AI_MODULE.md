@@ -69,7 +69,7 @@ If `preferredModelId` in metadata → `FixedModelChatAICommand`, otherwise → `
 | `UserPriority` | Base capabilities | Extra |
 |----------------|-------------------|-------|
 | `ADMIN` | `{AUTO}` | — |
-| `VIP` | `{CHAT, MODERATION, TOOL_CALLING, WEB}` | `max_price=0` |
+| `VIP` | `{CHAT, TOOL_CALLING, WEB}` | `max_price=0` |
 | `REGULAR` | `{CHAT}` | — |
 
 Adds `VISION` if image attachments are present.
@@ -316,7 +316,6 @@ REST stream handler emits `ServerSentEvent` per character.
 | `CHAT` | Text generation / dialog |
 | `EMBEDDING` | Text vectorization |
 | `RERANK` | Candidate reranking |
-| `MODERATION` | Content moderation |
 | `SUMMARIZATION` | Summarization |
 | `STRUCTURED_OUTPUT` | JSON by schema |
 | `TOOL_CALLING` | Function calling |

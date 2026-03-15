@@ -128,33 +128,37 @@ open-daimon:
             url: https://openrouter.ai/api
           refresh-initial-delay: 10s
           refresh-interval: 24h
-          filters:
-            # Roles allowed to use synced OpenRouter free models. Omit or leave empty = all roles (ALL).
-            allowed-roles: [ ADMIN, VIP ]
-            include-model-ids:
-              - nvidia/nemotron-3-super-120b-a12b:free
-              - google/gemma-3-27b-it:free
-              - qwen/qwen3-next-80b-a3b-instruct:free
-              - z-ai/glm-4.5-air:free
-              - tngtech/tng-r1t-chimera:free
-              - arcee-ai/trinity-large-preview:free
-              - arcee-ai/trinity-mini:free
-              - cognitivecomputations/dolphin-mistral-24b-venice-edition:free
-              - google/gemma-3-12b-it:free
-              - google/gemma-3-4b-it:free
-              - google/gemma-3n-e2b-it:free
-              - google/gemma-3n-e4b-it:free
-              - liquid/lfm-2.5-1.2b-instruct:free
-              - liquid/lfm-2.5-1.2b-thinking:free
-              - meta-llama/llama-3.2-3b-instruct:free
-              - nousresearch/hermes-3-llama-3.1-405b:free
-              - nvidia/nemotron-3-nano-30b-a3b:free
-              - nvidia/nemotron-nano-12b-v2-vl:free
-              - nvidia/nemotron-nano-9b-v2:free
-              - qwen/qwen3-4b:free
-              - qwen/qwen3-vl-235b-a22b-thinking
-              - qwen/qwen3-vl-30b-a3b-thinking
-              - stepfun/step-3.5-flash:free
+          whitelist:
+            - roles: [ ADMIN, VIP ]
+              include-contains:
+                - openai/gpt-5.4
+                - openai/gpt-5-nano
+                - z-ai/glm-5-turbo
+                - google/gemma-3-4b
+                - qwen/qwen3-4b
+                - qwen/qwen3-vl-235b-a22b-thinking
+                - qwen/qwen3-vl-30b-a3b-thinking
+            - roles: [ ADMIN, REGULAR ]
+              include-model-ids:
+                - google/gemma-3-27b-it:free
+                - qwen/qwen3-next-80b-a3b-instruct:free
+                - z-ai/glm-4.5-air:free
+                - tngtech/tng-r1t-chimera:free
+                - arcee-ai/trinity-large-preview:free
+                - arcee-ai/trinity-mini:free
+                - cognitivecomputations/dolphin-mistral-24b-venice-edition:free
+                - google/gemma-3-12b-it:free
+                - google/gemma-3-4b-it:free
+                - google/gemma-3n-e2b-it:free
+                - google/gemma-3n-e4b-it:free
+                - liquid/lfm-2.5-1.2b-instruct:free
+                - liquid/lfm-2.5-1.2b-thinking:free
+                - meta-llama/llama-3.2-3b-instruct:free
+                - nousresearch/hermes-3-llama-3.1-405b:free
+                - qwen/qwen3-4b:free
+                - stepfun/step-3.5-flash:free
+          blacklist:
+            exclude-model-ids: []  # add model IDs here to block them permanently
           ranking:
             enabled: true
             retry-max-attempts: 3
@@ -209,7 +213,6 @@ open-daimon:
               - TOOL_CALLING
               - SUMMARIZATION
               - VISION
-              - MODERATION
               - WEB
             provider-type: OLLAMA
             priority: 1

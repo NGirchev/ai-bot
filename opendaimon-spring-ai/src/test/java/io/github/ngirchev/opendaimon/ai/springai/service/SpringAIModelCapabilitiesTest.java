@@ -144,19 +144,6 @@ class SpringAIModelCapabilitiesTest {
     }
 
     @Test
-    void whenGetByCapability_MODERATION_thenReturnEmpty() {
-        // Arrange
-        ModelCapabilities moderationType = ModelCapabilities.MODERATION;
-        SpringAIModelType springAIModelType = createSpringAIModelType();
-
-        // Act
-        Optional<SpringAIModelConfig> result = springAIModelType.getByCapability(moderationType);
-
-        // Assert
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
     void whenGetByCapability_STRUCTURED_OUTPUT_thenReturnEmpty() {
         // Arrange
         ModelCapabilities structuredOutputType = ModelCapabilities.STRUCTURED_OUTPUT;

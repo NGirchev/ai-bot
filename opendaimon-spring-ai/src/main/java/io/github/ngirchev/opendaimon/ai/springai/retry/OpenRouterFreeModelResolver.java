@@ -437,38 +437,48 @@ public class OpenRouterFreeModelResolver {
         if (modelIds == null || modelIds.isEmpty()) {
             return Collections.emptyList();
         }
-        OpenRouterModelsProperties.Filters filters = openRouterModelsProperties.getFilters();
-        if (filters == null) {
-            return modelIds;
+
+        List<String> result = new ArrayList<>(modelIds);
+
+        // 1. Apply blacklist first
+        OpenRouterModelsProperties.Blacklist blacklist = openRouterModelsProperties.getBlacklist();
+        if (blacklist != null) {
+            if (blacklist.getExcludeModelIds() != null && !blacklist.getExcludeModelIds().isEmpty()) {
+                HashSet<String> deny = new HashSet<>(blacklist.getExcludeModelIds());
+                result = result.stream().filter(id -> !deny.contains(id)).toList();
+            }
+            if (blacklist.getExcludeContains() != null && !blacklist.getExcludeContains().isEmpty()) {
+                List<String> parts = blacklist.getExcludeContains();
+                result = result.stream()
+                        .filter(id -> parts.stream().noneMatch(id::contains))
+                        .toList();
+            }
         }
 
-        List<String> result = modelIds;
-
-        if (filters.getIncludeModelIds() != null && !filters.getIncludeModelIds().isEmpty()) {
-            HashSet<String> allow = new HashSet<>(filters.getIncludeModelIds());
-            result = result.stream().filter(allow::contains).toList();
-        }
-
-        if (filters.getIncludeContains() != null && !filters.getIncludeContains().isEmpty()) {
-            List<String> parts = filters.getIncludeContains();
+        // 2. Apply whitelist: keep only models matched by at least one whitelist entry
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterModelsProperties.getWhitelist();
+        if (whitelists != null && !whitelists.isEmpty()) {
             result = result.stream()
-                    .filter(id -> parts.stream().anyMatch(id::contains))
-                    .toList();
-        }
-
-        if (filters.getExcludeModelIds() != null && !filters.getExcludeModelIds().isEmpty()) {
-            HashSet<String> deny = new HashSet<>(filters.getExcludeModelIds());
-            result = result.stream().filter(id -> !deny.contains(id)).toList();
-        }
-
-        if (filters.getExcludeContains() != null && !filters.getExcludeContains().isEmpty()) {
-            List<String> parts = filters.getExcludeContains();
-            result = result.stream()
-                    .filter(id -> parts.stream().noneMatch(id::contains))
+                    .filter(id -> whitelists.stream().anyMatch(wl -> matchesWhitelist(id, wl)))
                     .toList();
         }
 
         return result;
+    }
+
+    private static boolean matchesWhitelist(String modelId, OpenRouterModelsProperties.Whitelist wl) {
+        boolean hasIncludeIds = wl.getIncludeModelIds() != null && !wl.getIncludeModelIds().isEmpty();
+        boolean hasIncludeContains = wl.getIncludeContains() != null && !wl.getIncludeContains().isEmpty();
+        if (!hasIncludeIds && !hasIncludeContains) {
+            return true;
+        }
+        if (hasIncludeIds && wl.getIncludeModelIds().contains(modelId)) {
+            return true;
+        }
+        if (hasIncludeContains && wl.getIncludeContains().stream().anyMatch(modelId::contains)) {
+            return true;
+        }
+        return false;
     }
 
     private ModelInfo extractModelInfo(JsonNode modelNode) {

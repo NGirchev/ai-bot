@@ -30,14 +30,6 @@ public enum ModelCapabilities {
      */
     RERANK,
 
-    /**
-     * Content/policy/PII check for external providers or before logging. (we use openrouter
-     * and this filter is not invoked either)
-     * Input: text/images
-     * Output: flags/categories
-     */
-    MODERATION,
-
     SUMMARIZATION,
 
     /**

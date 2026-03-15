@@ -23,7 +23,6 @@ class OpenRouterModelCapabilitiesMapperTest {
         JsonNode node = objectMapper.readTree("{}");
         Set<ModelCapabilities> caps = OpenRouterModelCapabilitiesMapper.fromOpenRouterModel(node);
         assertTrue(caps.contains(ModelCapabilities.CHAT));
-        assertTrue(caps.contains(ModelCapabilities.MODERATION));
         assertTrue(caps.contains(ModelCapabilities.SUMMARIZATION));
     }
 

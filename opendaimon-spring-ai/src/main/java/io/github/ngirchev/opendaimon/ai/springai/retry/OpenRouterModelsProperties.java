@@ -17,7 +17,8 @@ import java.util.List;
 
 /**
  * Settings for OpenRouter model list refresh and ranking.
- * Free-model filter is configured in filters (e.g. include-model-ids).
+ * Allowed free models are configured via whitelist (per-role, multiple entries).
+ * Blocked models are configured via blacklist (global, applied first).
  *
  * Important: no defaults in code, everything is set in application.yml.
  */
@@ -45,9 +46,19 @@ public class OpenRouterModelsProperties {
     @NestedConfigurationProperty
     private Ranking ranking;
 
+    /**
+     * Per-role allowlists. Multiple entries are supported; a model is allowed if it matches
+     * at least one whitelist entry. If the list is null or empty — all API free models pass.
+     */
+    @Valid
+    private List<Whitelist> whitelist;
+
+    /**
+     * Global blacklist applied before any whitelist. Models matched here are never added.
+     */
     @Valid
     @NestedConfigurationProperty
-    private Filters filters;
+    private Blacklist blacklist;
 
     @Getter
     @Setter
@@ -106,32 +117,36 @@ public class OpenRouterModelsProperties {
 
     @Getter
     @Setter
-    public static class Filters {
+    public static class Whitelist {
         /**
-         * Allowlist: if set, only models from this list are used.
+         * Roles that can use models matched by this whitelist entry.
+         * Null or empty means all roles are allowed.
+         */
+        private List<UserPriority> roles;
+
+        /**
+         * Exact model IDs allowed by this whitelist entry.
          */
         private List<String> includeModelIds;
 
         /**
-         * Allowlist by substrings: if set, only models whose id contains any of these fragments are used.
+         * Models whose ID contains any of these fragments are allowed by this whitelist entry.
          */
         private List<String> includeContains;
+    }
 
+    @Getter
+    @Setter
+    public static class Blacklist {
         /**
-         * Explicit blacklist of models unsuitable for our pipeline (e.g. return 400 due to messages format).
+         * Exact model IDs that must never be added, regardless of whitelist.
          */
         private List<String> excludeModelIds;
 
         /**
-         * Exclude models whose id contains any of these fragments.
+         * Models whose ID contains any of these fragments are excluded regardless of whitelist.
          */
         private List<String> excludeContains;
-
-        /**
-         * Roles allowed to use OpenRouter free models added by sync (from API).
-         * Values: ADMIN, VIP, REGULAR. If null or empty — all roles can use synced free models.
-         */
-        private List<UserPriority> allowedRoles;
     }
 
     @AssertTrue(message = "When enabled=true, api.key, api.url, refresh-initial-delay and refresh-interval (both > 0) must be set")

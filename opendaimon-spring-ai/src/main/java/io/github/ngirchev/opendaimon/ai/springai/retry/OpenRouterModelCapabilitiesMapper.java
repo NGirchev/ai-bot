@@ -60,9 +60,6 @@ public final class OpenRouterModelCapabilitiesMapper {
         // CHAT — all models in list are chat models
         out.add(ModelCapabilities.CHAT);
 
-        // MODERATION — in OpenRouter all models go through moderation
-        out.add(ModelCapabilities.MODERATION);
-
         // SUMMARIZATION is NOT assigned automatically: some models (e.g. gemma via Google AI Studio)
         // reject system messages, causing summarization to fail. Only yml-configured models with
         // explicit SUMMARIZATION capability are used for summarization.

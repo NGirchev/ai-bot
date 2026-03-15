@@ -126,25 +126,34 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
             List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
             // Auto button first
-            InlineKeyboardButton autoBtn = new InlineKeyboardButton(
-                    messageLocalizationService.getMessage("telegram.model.auto", user.getLanguageCode()));
+            String autoLabel = messageLocalizationService.getMessage("telegram.model.auto", user.getLanguageCode());
+            InlineKeyboardButton autoBtn = new InlineKeyboardButton(autoLabel);
             autoBtn.setCallbackData(CALLBACK_AUTO);
             keyboard.add(List.of(autoBtn));
+
+            String selectText = messageLocalizationService.getMessage("telegram.model.select", user.getLanguageCode());
+            StringBuilder text = new StringBuilder(selectText).append("\n\n");
+            text.append(autoLabel).append(" — automatic selection\n\n");
 
             // Model buttons — use numeric index as callback data to stay within Telegram's 64-byte limit
             List<ModelInfo> models = response.models();
             for (int i = 0; i < models.size(); i++) {
                 ModelInfo model = models.get(i);
-                String capLabels = buildCapabilityLabel(model.capabilities());
-                String label = model.name() + (capLabels.isEmpty() ? "" : " [" + capLabels + "]");
-                InlineKeyboardButton btn = new InlineKeyboardButton(label);
+                String caps = buildCapabilityLabel(model.capabilities());
+                String providerPrefix = model.provider() != null && !model.provider().isEmpty()
+                        ? "[" + model.provider() + "] " : "";
+                text.append(i + 1).append(". ").append(providerPrefix).append(model.name());
+                if (!caps.isEmpty()) text.append(" — ").append(caps);
+                text.append("\n");
+
+                String btnLabel = providerPrefix + model.name();
+                InlineKeyboardButton btn = new InlineKeyboardButton(btnLabel);
                 btn.setCallbackData(CALLBACK_PREFIX + i);
                 keyboard.add(List.of(btn));
             }
 
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup(keyboard);
-            String selectText = messageLocalizationService.getMessage("telegram.model.select", user.getLanguageCode());
-            SendMessage msg = new SendMessage(chatId.toString(), selectText);
+            SendMessage msg = new SendMessage(chatId.toString(), text.toString());
             msg.setReplyMarkup(markup);
             telegramBotProvider.getObject().execute(msg);
         } catch (Exception e) {

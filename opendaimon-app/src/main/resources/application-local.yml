@@ -21,7 +21,6 @@ open-daimon:
               - TOOL_CALLING
               - SUMMARIZATION
               - VISION
-              - MODERATION
               - WEB
             provider-type: OLLAMA
             priority: 1
