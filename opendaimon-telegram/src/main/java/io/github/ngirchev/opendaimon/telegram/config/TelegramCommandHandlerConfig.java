@@ -19,6 +19,7 @@ import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
 import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramMessageService;
 import io.github.ngirchev.opendaimon.telegram.repository.TelegramUserRepository;
+import io.github.ngirchev.opendaimon.telegram.service.TelegramBotMenuService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserSessionService;
 
@@ -79,9 +80,10 @@ public class TelegramCommandHandlerConfig {
             ObjectProvider<TelegramBot> telegramBotProvider,
             TypingIndicatorService typingIndicatorService,
             MessageLocalizationService messageLocalizationService,
-            TelegramUserService telegramUserService) {
+            TelegramUserService telegramUserService,
+            TelegramBotMenuService telegramBotMenuService) {
         return new LanguageTelegramCommandHandler(telegramBotProvider,
-                typingIndicatorService, messageLocalizationService, telegramUserService);
+                typingIndicatorService, messageLocalizationService, telegramUserService, telegramBotMenuService);
     }
 
     @Bean

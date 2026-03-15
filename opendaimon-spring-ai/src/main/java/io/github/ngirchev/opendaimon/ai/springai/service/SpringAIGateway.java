@@ -144,7 +144,9 @@ public class SpringAIGateway implements AIGateway {
             // Second-line guard: validate live registry capabilities at execution time
             Set<ModelCapabilities> liveCapabilities = modelConfig.getCapabilities() != null
                     ? modelConfig.getCapabilities() : Set.of();
-            Set<ModelCapabilities> requiredCapabilities = command.modelCapabilities();
+            Set<ModelCapabilities> requiredCapabilities = command.modelCapabilities().stream()
+                    .filter(c -> c != ModelCapabilities.AUTO)
+                    .collect(java.util.stream.Collectors.toSet());
             if (!requiredCapabilities.isEmpty() && !liveCapabilities.containsAll(requiredCapabilities)) {
                 Set<ModelCapabilities> missing = requiredCapabilities.stream()
                         .filter(c -> !liveCapabilities.contains(c))

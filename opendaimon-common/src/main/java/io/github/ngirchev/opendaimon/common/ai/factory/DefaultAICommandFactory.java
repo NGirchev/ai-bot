@@ -89,8 +89,11 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                 Set<ModelCapabilities> fixedModelCapabilities;
                 if (modelDescriptionCache != null) {
                     fixedModelCapabilities = modelDescriptionCache.getCapabilities(fixedModelId);
-                    if (!fixedModelCapabilities.containsAll(modelCapabilities)) {
-                        Set<ModelCapabilities> missing = modelCapabilities.stream()
+                    Set<ModelCapabilities> checkableCapabilities = modelCapabilities.stream()
+                            .filter(c -> c != AUTO)
+                            .collect(java.util.stream.Collectors.toSet());
+                    if (!fixedModelCapabilities.containsAll(checkableCapabilities)) {
+                        Set<ModelCapabilities> missing = checkableCapabilities.stream()
                                 .filter(c -> !fixedModelCapabilities.contains(c))
                                 .collect(java.util.stream.Collectors.toSet());
                         throw new UnsupportedModelCapabilityException(fixedModelId, missing);

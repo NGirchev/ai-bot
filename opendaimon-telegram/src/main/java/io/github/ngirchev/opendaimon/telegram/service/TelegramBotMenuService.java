@@ -47,6 +47,21 @@ public class TelegramBotMenuService {
     }
 
     /**
+     * Sets bot command menu for a specific user chat, overriding the global language-based menu.
+     */
+    public void setupBotMenuForUser(Long chatId, String languageCode) {
+        try {
+            TelegramBot bot = telegramBotProvider.getObject();
+            List<BotCommand> commands = buildCommandsList(languageCode);
+            if (!commands.isEmpty()) {
+                bot.setMyCommands(commands, chatId);
+            }
+        } catch (TelegramApiException e) {
+            log.error("Failed to set bot menu for chat {}", chatId, e);
+        }
+    }
+
+    /**
      * Builds list of commands from handlers for the given language.
      */
     private List<BotCommand> buildCommandsList(String languageCode) {

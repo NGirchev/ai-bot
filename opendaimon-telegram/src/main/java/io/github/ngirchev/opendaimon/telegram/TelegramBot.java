@@ -19,6 +19,7 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeChat;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.InlineQuery;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.inputmessagecontent.InputTextMessageContent;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.result.InlineQueryResultArticle;
@@ -468,10 +469,16 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     /**
-     * Sets bot command menu (default scope, no language).
+     * Sets bot command menu scoped to a specific chat, overriding the global language-based menu for that user.
      */
-    public void setMyCommands(List<BotCommand> commands) throws TelegramApiException {
-        setMyCommands(commands, null);
+    public void setMyCommands(List<BotCommand> commands, Long chatId) throws TelegramApiException {
+        SetMyCommands setMyCommands = new SetMyCommands();
+        setMyCommands.setCommands(commands);
+        BotCommandScopeChat scope = new BotCommandScopeChat();
+        scope.setChatId(chatId.toString());
+        setMyCommands.setScope(scope);
+        execute(setMyCommands);
+        log.info("Set {} commands for chat {} menu", commands.size(), chatId);
     }
 
     /**

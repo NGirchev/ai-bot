@@ -15,6 +15,7 @@ import io.github.ngirchev.opendaimon.telegram.command.TelegramCommandType;
 import io.github.ngirchev.opendaimon.telegram.command.handler.AbstractTelegramCommandHandlerWithResponseSend;
 import io.github.ngirchev.opendaimon.telegram.command.handler.TelegramCommandHandlerException;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
+import io.github.ngirchev.opendaimon.telegram.service.TelegramBotMenuService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
 
@@ -25,13 +26,16 @@ public class LanguageTelegramCommandHandler extends AbstractTelegramCommandHandl
     private static final String CALLBACK_PREFIX = "LANG_";
 
     private final TelegramUserService telegramUserService;
+    private final TelegramBotMenuService menuService;
 
     public LanguageTelegramCommandHandler(ObjectProvider<TelegramBot> telegramBotProvider,
                                           TypingIndicatorService typingIndicatorService,
                                           MessageLocalizationService messageLocalizationService,
-                                          TelegramUserService telegramUserService) {
+                                          TelegramUserService telegramUserService,
+                                          TelegramBotMenuService menuService) {
         super(telegramBotProvider, typingIndicatorService, messageLocalizationService);
         this.telegramUserService = telegramUserService;
+        this.menuService = menuService;
     }
 
     @Override
@@ -91,6 +95,7 @@ public class LanguageTelegramCommandHandler extends AbstractTelegramCommandHandl
             return;
         }
         telegramUserService.updateLanguageCode(cq.getFrom().getId(), normalized);
+        menuService.setupBotMenuForUser(command.telegramId(), normalized);
         String label = languageLabel(normalized, normalized);
         String updatedMsg = messageLocalizationService.getMessage("telegram.language.updated", normalized, label);
         ackCallback(cq.getId(), updatedMsg);
