@@ -16,10 +16,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
-import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterRotationRegistry;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.OpenDaimonChatOptions;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIResponse;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
@@ -381,6 +381,54 @@ class OpenRouterModelRotationAspectTest {
 
         assertEquals(successResponse, result);
         verify(proceedingJoinPoint).proceed(any());
+    }
+
+    @Test
+    void whenFixedModelCommand_thenSkipsRotationAndUsesOnlyFixedModel() throws Throwable {
+        aspect = new OpenRouterModelRotationAspect(registry, 3);
+        FixedModelChatAICommand fixedCommand = new FixedModelChatAICommand(
+                "gpt-4o", Set.of(), 0.7, 1000, null, null, null, false, null, null, null);
+
+        Object[] args = new Object[]{modelConfig, fixedCommand};
+        when(proceedingJoinPoint.getArgs()).thenReturn(args);
+        AIResponse expectedResult = new SpringAIResponse(mock(ChatResponse.class));
+        when(proceedingJoinPoint.proceed(any())).thenReturn(expectedResult);
+
+        AIResponse result = aspect.rotateModels(proceedingJoinPoint, createAnnotation(false));
+
+        assertEquals(expectedResult, result);
+        // Registry must NOT be called — fixed model bypasses rotation
+        verify(registry, never()).getCandidatesByCapabilities(any(), any());
+        // Only one proceed call — no retry switching
+        verify(proceedingJoinPoint, times(1)).proceed(any());
+    }
+
+    @Test
+    void whenFixedModelCommand_retryableError_doesNotSwitchModel() throws Throwable {
+        aspect = new OpenRouterModelRotationAspect(registry, 3);
+        FixedModelChatAICommand fixedCommand = new FixedModelChatAICommand(
+                "gpt-4o", Set.of(), 0.7, 1000, null, null, null, false, null, null, null);
+
+        Object[] args = new Object[]{modelConfig, fixedCommand};
+        when(proceedingJoinPoint.getArgs()).thenReturn(args);
+
+        WebClientResponseException error429 = WebClientResponseException.create(
+                HttpStatus.TOO_MANY_REQUESTS.value(), "Too Many Requests",
+                HttpHeaders.EMPTY, new byte[0], null);
+        doThrow(error429).when(proceedingJoinPoint).proceed(any());
+
+        // With only one candidate, the error should propagate immediately (no other model to try)
+        assertThrows(RuntimeException.class, () -> {
+            try {
+                aspect.rotateModels(proceedingJoinPoint, createAnnotation(false));
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
+        });
+
+        // Registry never queried — only the fixed model was attempted
+        verify(registry, never()).getCandidatesByCapabilities(any(), any());
+        verify(proceedingJoinPoint, times(1)).proceed(any());
     }
 
     private RotateOpenRouterModels createAnnotation(boolean stream) {

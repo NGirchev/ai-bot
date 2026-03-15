@@ -10,6 +10,7 @@ import reactor.core.publisher.Flux;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
 
@@ -159,6 +160,11 @@ public class OpenRouterModelRotationAspect {
     private static final String OPENROUTER_AUTO_MODEL = "openrouter/auto";
 
     private List<SpringAIModelConfig> resolveCandidates(SpringAIModelConfig modelConfig, AICommand command) {
+        // Fixed model: user explicitly selected a model — no routing, no retry fallback
+        if (command instanceof FixedModelChatAICommand) {
+            log.info("OpenRouter model rotation: fixed model selected={}, skipping rotation", modelConfig != null ? modelConfig.getName() : "null");
+            return modelConfig != null ? List.of(modelConfig) : List.of();
+        }
         var capabilities = command.modelCapabilities();
         if (capabilities == null) {
             capabilities = Set.of();
