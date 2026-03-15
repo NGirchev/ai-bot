@@ -50,10 +50,11 @@ class DefaultAICommandFactoryTest {
 
         assertInstanceOf(ChatAICommand.class, command);
         ChatAICommand chatCommand = (ChatAICommand) command;
-        assertEquals(3, chatCommand.modelCapabilities().size(), "VIP: CHAT, TOOL_CALLING, WEB");
+        assertEquals(1, chatCommand.modelCapabilities().size(), "VIP required: CHAT only");
         assertTrue(chatCommand.modelCapabilities().contains(ModelCapabilities.CHAT));
-        assertTrue(chatCommand.modelCapabilities().contains(ModelCapabilities.TOOL_CALLING));
-        assertTrue(chatCommand.modelCapabilities().contains(ModelCapabilities.WEB));
+        assertEquals(2, chatCommand.optionalCapabilities().size(), "VIP optional: TOOL_CALLING, WEB");
+        assertTrue(chatCommand.optionalCapabilities().contains(ModelCapabilities.TOOL_CALLING));
+        assertTrue(chatCommand.optionalCapabilities().contains(ModelCapabilities.WEB));
         assertEquals(0, chatCommand.body().get(MAX_PRICE));
     }
 

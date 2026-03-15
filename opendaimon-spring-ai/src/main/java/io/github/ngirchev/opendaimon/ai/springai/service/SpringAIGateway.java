@@ -162,6 +162,14 @@ public class SpringAIGateway implements AIGateway {
             // AUTO mode — use capability-based selection
             List<SpringAIModelConfig> candidates = springAIModelRegistry
                     .getCandidatesByCapabilities(command.modelCapabilities(), null, userPriority);
+            // Prefer models that also cover optional capabilities (stable sort — preserves priority order within same score)
+            Set<ModelCapabilities> optional = command.optionalCapabilities();
+            if (!optional.isEmpty() && !candidates.isEmpty()) {
+                candidates = candidates.stream()
+                        .sorted(Comparator.comparingInt(
+                                (SpringAIModelConfig m) -> -countMatchingCaps(m.getCapabilities(), optional)))
+                        .toList();
+            }
             modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
             if (modelConfig == null) {
                 throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
@@ -778,6 +786,15 @@ public class SpringAIGateway implements AIGateway {
             log.error("Failed to render PDF '{}' pages as images", filename, e);
             return List.of();
         }
+    }
+
+    private static int countMatchingCaps(Set<ModelCapabilities> modelCaps, Set<ModelCapabilities> optional) {
+        if (modelCaps == null || optional == null) return 0;
+        int count = 0;
+        for (ModelCapabilities cap : optional) {
+            if (modelCaps.contains(cap)) count++;
+        }
+        return count;
     }
 
 }

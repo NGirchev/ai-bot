@@ -144,6 +144,7 @@ public class ConversationHistoryAICommandFactory implements AICommandFactory<AIC
             } else {
                 return new ChatAICommand(
                         modelCapabilities,
+                        Set.of(),
                         0.35,
                         maxOutputTokens,
                         maxReasoningTokens,

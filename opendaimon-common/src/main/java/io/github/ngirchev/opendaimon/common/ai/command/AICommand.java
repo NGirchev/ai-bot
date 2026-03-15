@@ -15,6 +15,13 @@ public interface AICommand {
     String USER_PRIORITY_FIELD = "userPriority";
 
     Set<ModelCapabilities> modelCapabilities();
+
+    /**
+     * Optional (preferred) capabilities — used to rank candidates but do NOT block selection.
+     * If no candidate has them, the best required-only match is used instead.
+     */
+    default Set<ModelCapabilities> optionalCapabilities() { return Set.of(); }
+
     Map<String, String> metadata();
     <T extends AICommandOptions> T options();
 }

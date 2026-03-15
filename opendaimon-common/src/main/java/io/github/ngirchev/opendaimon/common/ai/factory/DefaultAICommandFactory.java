@@ -72,13 +72,22 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             Map<String, Object> body = new HashMap<>();
 
             // Base modelTypes depending on priority
+            Set<ModelCapabilities> optionalModelCapabilities;
             Set<ModelCapabilities> baseModelCapabilities = switch (priority) {
-                case ADMIN -> Set.of(AUTO);
+                case ADMIN -> {
+                    optionalModelCapabilities = Set.of();
+                    yield Set.of(AUTO);
+                }
                 case VIP -> {
                     body.put(MAX_PRICE, 0);
-                    yield Set.of(CHAT, TOOL_CALLING, WEB);
+                    // TOOL_CALLING and WEB are preferred but not required — fall back to any CHAT model if needed
+                    optionalModelCapabilities = Set.of(TOOL_CALLING, WEB);
+                    yield Set.of(CHAT);
                 }
-                default -> Set.of(CHAT);
+                default -> {
+                    optionalModelCapabilities = Set.of();
+                    yield Set.of(CHAT);
+                }
             };
 
             // Add VISION dynamically if there are images
@@ -117,6 +126,7 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             } else {
                 return new ChatAICommand(
                         modelCapabilities,
+                        optionalModelCapabilities,
                         0.35,
                         maxOutputTokens,
                         maxReasoningTokens,

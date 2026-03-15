@@ -121,6 +121,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT),
+                Set.of(),
                 0.35,
                 1000,
                 null,
@@ -160,6 +161,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(),
                 0.35,
                 1000,
                 null,
@@ -217,6 +219,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(),
                 0.35,
                 1000,
                 null,
@@ -285,6 +288,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(),
                 0.35,
                 1000,
                 null,
