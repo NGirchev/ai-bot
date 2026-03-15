@@ -3,7 +3,6 @@ package io.github.ngirchev.opendaimon.ai.springai.service;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
 import io.github.ngirchev.opendaimon.ai.springai.retry.SpringAIModelRegistry;
 import io.github.ngirchev.opendaimon.bulkhead.model.UserPriority;
-import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ModelListAICommand;
 import io.github.ngirchev.opendaimon.common.ai.model.ModelInfo;
@@ -17,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 public class ModelListAIGateway implements AIGateway {
@@ -44,8 +42,7 @@ public class ModelListAIGateway implements AIGateway {
     @Override
     public AIResponse generateResponse(AICommand command) {
         UserPriority userPriority = resolveUserPriority(command);
-        List<SpringAIModelConfig> candidates = springAIModelRegistry
-                .getCandidatesByCapabilities(Set.of(ModelCapabilities.CHAT), null, userPriority);
+        List<SpringAIModelConfig> candidates = springAIModelRegistry.getAllModels(userPriority);
         List<ModelInfo> models = candidates.stream()
                 .map(cfg -> new ModelInfo(cfg.getName(), new LinkedHashSet<>(cfg.getCapabilities())))
                 .toList();

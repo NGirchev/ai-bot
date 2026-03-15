@@ -23,6 +23,7 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.github.ngirchev.opendaimon.common.ai.LlmParamNames.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -61,11 +62,11 @@ class SpringAIPromptFactoryTest {
         ollamaModelConfig = new SpringAIModelConfig();
         ollamaModelConfig.setName("ollama-model");
         ollamaModelConfig.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
-        ollamaModelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        ollamaModelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         openAIModelConfig = new SpringAIModelConfig();
         openAIModelConfig.setName("openrouter/auto");
         openAIModelConfig.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
-        openAIModelConfig.setCapabilities(List.of(ModelCapabilities.AUTO));
+        openAIModelConfig.setCapabilities(Set.of(ModelCapabilities.AUTO));
 
         ChatResponse mockResponse = ChatResponse.builder()
                 .generations(List.of(new Generation(new AssistantMessage("ok"))))
@@ -134,7 +135,7 @@ class SpringAIPromptFactoryTest {
         SpringAIModelConfig configWithNullProvider = new SpringAIModelConfig();
         configWithNullProvider.setName("some-model");
         configWithNullProvider.setProviderType(null);
-        configWithNullProvider.setCapabilities(List.of(ModelCapabilities.CHAT));
+        configWithNullProvider.setCapabilities(Set.of(ModelCapabilities.CHAT));
         var spec = promptFactory.preparePrompt(
                 configWithNullProvider,
                 "ollama-model",

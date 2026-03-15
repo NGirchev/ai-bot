@@ -10,6 +10,7 @@ import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.bulkhead.model.UserPriority;
 
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -19,7 +20,7 @@ public class SpringAIModelConfig {
     private String name;
     
     @NotEmpty(message = "List of capabilities cannot be empty")
-    private List<ModelCapabilities> capabilities;
+    private Set<ModelCapabilities> capabilities;
     
     @NotNull(message = "Provider type is required")
     private ProviderType providerType;

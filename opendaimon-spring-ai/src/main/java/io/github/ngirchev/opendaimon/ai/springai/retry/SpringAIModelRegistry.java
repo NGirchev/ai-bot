@@ -97,21 +97,26 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
                 continue;
             }
             Set<ModelCapabilities> caps = OpenRouterModelCapabilitiesMapper.fromOpenRouterModel(entry.node(), true);
-            SpringAIModelConfig config = new SpringAIModelConfig();
-            config.setName(entry.id());
-            config.setCapabilities(new ArrayList<>(caps));
-            config.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
-            config.setPriority(OPENROUTER_FREE_PRIORITY);
-            OpenRouterModelsProperties.Filters filters = openRouterProperties.getFilters();
-            if (filters != null && filters.getAllowedRoles() != null && !filters.getAllowedRoles().isEmpty()) {
-                config.setAllowedRoles(new ArrayList<>(filters.getAllowedRoles()));
-            }
+            SpringAIModelConfig config = getSpringAIModelConfig(entry, caps);
             modelsByName.put(entry.id(), config);
             log.debug("Added OpenRouter free model to registry: {}", entry.id());
         }
 
         logExcludedAndAlreadyPresent(freeFromApi, freeFiltered, keysBeforeAdd);
         logRegistrySnapshot("after OpenRouter sync");
+    }
+
+    private SpringAIModelConfig getSpringAIModelConfig(OpenRouterModelEntry entry, Set<ModelCapabilities> caps) {
+        SpringAIModelConfig config = new SpringAIModelConfig();
+        config.setName(entry.id());
+        config.setCapabilities(caps);
+        config.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
+        config.setPriority(OPENROUTER_FREE_PRIORITY);
+        OpenRouterModelsProperties.Filters filters = openRouterProperties.getFilters();
+        if (filters != null && filters.getAllowedRoles() != null && !filters.getAllowedRoles().isEmpty()) {
+            config.setAllowedRoles(new ArrayList<>(filters.getAllowedRoles()));
+        }
+        return config;
     }
 
     private static String normalizeOpenRouterBaseUrl(String url) {
@@ -264,11 +269,11 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         }
         List<SpringAIModelConfig> candidates = new ArrayList<>();
         for (SpringAIModelConfig model : modelsByName.values()) {
-            List<ModelCapabilities> caps = model.getCapabilities();
+            Set<ModelCapabilities> caps = model.getCapabilities();
             if (caps == null || caps.isEmpty()) {
                 continue;
             }
-            Integer maxIndex = findMaxIndexForAllTypes(caps, required);
+            Integer maxIndex = findMaxIndexForAllTypes(new ArrayList<>(caps), required);
             if (maxIndex == null) {
                 continue;
             }
@@ -286,7 +291,7 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
                 .comparing(SpringAIModelConfig::getPriority)
                 .thenComparing(SpringAIModelConfig::getName);
         candidates.sort(
-                Comparator.<SpringAIModelConfig>comparingInt(m -> findMaxIndexForAllTypes(m.getCapabilities(), required))
+                Comparator.<SpringAIModelConfig>comparingInt(m -> findMaxIndexForAllTypes(new ArrayList<>(m.getCapabilities()), required))
                         .thenComparing(byPriority)
                         .thenComparing((SpringAIModelConfig m) -> -score(m.getName(), now))
                         .thenComparing(SpringAIModelConfig::getName)
@@ -298,10 +303,22 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
                     .findFirst();
             if (preferred.isPresent()) {
                 candidates.remove(preferred.get());
-                candidates.add(0, preferred.get());
+                candidates.addFirst(preferred.get());
             }
         }
         return List.copyOf(candidates);
+    }
+
+    /**
+     * All models visible to the given user role, sorted by priority then name.
+     * If userPriority is null — role filtering is skipped.
+     */
+    public List<SpringAIModelConfig> getAllModels(UserPriority userPriority) {
+        return modelsByName.values().stream()
+                .filter(m -> userPriority == null || m.isAllowedForRole(userPriority))
+                .sorted(Comparator.comparing(SpringAIModelConfig::getPriority)
+                        .thenComparing(SpringAIModelConfig::getName))
+                .toList();
     }
 
     public Optional<SpringAIModelConfig> getByModelName(String name) {
@@ -309,6 +326,14 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             return Optional.empty();
         }
         return Optional.ofNullable(modelsByName.get(name));
+    }
+
+    public Set<ModelCapabilities> getCapabilities(String modelId) {
+        SpringAIModelConfig config = modelsByName.get(modelId);
+        if (config == null || config.getCapabilities() == null) {
+            return Set.of();
+        }
+        return new LinkedHashSet<>(config.getCapabilities());
     }
 
     private static Integer findMaxIndexForAllTypes(List<ModelCapabilities> capabilities, Set<ModelCapabilities> requestedTypes) {

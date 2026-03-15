@@ -29,10 +29,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.beans.factory.ObjectProvider;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -68,8 +65,8 @@ class PreferredModelSelectionTest {
     void setUp() {
         when(springAIProperties.getMock()).thenReturn(false);
 
-        qwen = model("qwen3.5", List.of(ModelCapabilities.CHAT));
-        glm  = model("z-ai/glm-4.5v", List.of(ModelCapabilities.CHAT, ModelCapabilities.WEB, ModelCapabilities.VISION));
+        qwen = model("qwen3.5", Set.of(ModelCapabilities.CHAT));
+        glm  = model("z-ai/glm-4.5v", Set.of(ModelCapabilities.CHAT, ModelCapabilities.WEB, ModelCapabilities.VISION));
 
         // Registry: capability-based search returns glm (has WEB), name-based returns qwen
         when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of(glm));
@@ -197,7 +194,7 @@ class PreferredModelSelectionTest {
         boolean hasMediaInUserMessage = messagesCaptor.getValue().stream()
                 .filter(m -> m instanceof org.springframework.ai.chat.messages.UserMessage)
                 .map(m -> (org.springframework.ai.chat.messages.UserMessage) m)
-                .anyMatch(m -> m.getMedia() != null && !m.getMedia().isEmpty());
+                .anyMatch(m -> !m.getMedia().isEmpty());
 
         assertTrue(hasMediaInUserMessage,
                 "Image attachment must be included in the UserMessage sent to chatService");
@@ -205,7 +202,7 @@ class PreferredModelSelectionTest {
 
     // -----------------------------------------------------------------------
 
-    private static SpringAIModelConfig model(String name, List<ModelCapabilities> caps) {
+    private static SpringAIModelConfig model(String name, Set<ModelCapabilities> caps) {
         SpringAIModelConfig c = new SpringAIModelConfig();
         c.setName(name);
         c.setCapabilities(caps);

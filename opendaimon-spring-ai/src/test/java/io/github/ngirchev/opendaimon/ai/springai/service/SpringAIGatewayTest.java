@@ -66,7 +66,7 @@ class SpringAIGatewayTest {
         when(springAIProperties.getMock()).thenReturn(false);
         modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
         modelConfig.setPriority(1);
         when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of(modelConfig));
@@ -217,23 +217,7 @@ class SpringAIGatewayTest {
     }
 
     @Test
-    void generateResponse_command_emptyCandidates_usesAutoFallback() {
-        when(springAIProperties.getMock()).thenReturn(false);
-        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.CHAT)), any(), any())).thenReturn(List.of());
-        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any(), any())).thenReturn(List.of(modelConfig));
-        when(chatService.callChat(any(), any(), any(), any())).thenReturn(
-                new SpringAIResponse(ChatResponse.builder()
-                        .generations(List.of(new Generation(new AssistantMessage("OK"))))
-                        .build()));
-        ChatAICommand command = new ChatAICommand(
-                Set.of(ModelCapabilities.CHAT), 0.7, 1000, "Sys", "User", false, Map.of(), Map.of());
-        AIResponse response = gateway.generateResponse(command);
-        assertNotNull(response);
-        verify(chatService).callChat(eq(modelConfig), eq(command), any(), any());
-    }
-
-    @Test
-    void generateResponse_command_noCandidatesAndNoAutoFallback_throws() {
+    void generateResponse_command_noCandidates_throws() {
         when(springAIProperties.getMock()).thenReturn(false);
         when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of());
         ChatAICommand command = new ChatAICommand(
@@ -269,23 +253,7 @@ class SpringAIGatewayTest {
     }
 
     @Test
-    void generateResponse_mapBody_modelNotInRegistry_usesFallbackByCapabilities() {
-        when(springAIProperties.getMock()).thenReturn(false);
-        when(springAIModelRegistry.getByModelName(eq("other-model"))).thenReturn(Optional.empty());
-        when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any()))
-                .thenReturn(List.of(modelConfig));
-        ChatResponse chatResponse = ChatResponse.builder()
-                .generations(List.of(new Generation(new AssistantMessage("OK"))))
-                .build();
-        when(chatService.callChatFromBody(any(), any(), any(), anyBoolean(), any())).thenReturn(new SpringAIResponse(chatResponse));
-        Map<String, Object> body = Map.of(MODEL, "other-model", MESSAGES, List.of());
-        AIResponse response = gateway.generateResponse(body);
-        assertNotNull(response);
-        verify(chatService).callChatFromBody(eq(modelConfig), eq(body), isNull(), eq(true), any());
-    }
-
-    @Test
-    void generateResponse_mapBody_unknownModelNoFallback_throws() {
+    void generateResponse_mapBody_unknownModel_throws() {
         when(springAIProperties.getMock()).thenReturn(false);
         when(springAIModelRegistry.getByModelName(eq("unknown-model"))).thenReturn(Optional.empty());
         when(springAIModelRegistry.getCandidatesByCapabilities(eq(Set.of(ModelCapabilities.AUTO)), any())).thenReturn(List.of());
@@ -301,7 +269,7 @@ class SpringAIGatewayTest {
 
     private FixedModelChatAICommand fixedCommand(String modelId, List<Attachment> attachments) {
         return new FixedModelChatAICommand(
-                modelId, 0.7, 1000, null, "Sys", "User", false, Map.of(), Map.of(), attachments);
+                modelId, Set.of(), 0.7, 1000, null, "Sys", "User", false, Map.of(), Map.of(), attachments);
     }
 
     @Test
@@ -310,7 +278,7 @@ class SpringAIGatewayTest {
         // FixedModelChatAICommand must call getByModelName() directly.
         SpringAIModelConfig qwen = new SpringAIModelConfig();
         qwen.setName("qwen3.5");
-        qwen.setCapabilities(List.of(ModelCapabilities.CHAT));
+        qwen.setCapabilities(Set.of(ModelCapabilities.CHAT));
         qwen.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         qwen.setPriority(1);
 
@@ -343,7 +311,7 @@ class SpringAIGatewayTest {
     void fixedModel_withImageAttachment_modelLacksVision_throwsUnsupportedModelCapabilityException() {
         SpringAIModelConfig qwen = new SpringAIModelConfig();
         qwen.setName("qwen3.5");
-        qwen.setCapabilities(List.of(ModelCapabilities.CHAT)); // no VISION
+        qwen.setCapabilities(Set.of(ModelCapabilities.CHAT)); // no VISION
         qwen.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         qwen.setPriority(1);
 
@@ -360,7 +328,7 @@ class SpringAIGatewayTest {
     void fixedModel_withImageAttachment_modelHasVision_succeeds() {
         SpringAIModelConfig visionModel = new SpringAIModelConfig();
         visionModel.setName("glm-vision");
-        visionModel.setCapabilities(List.of(ModelCapabilities.CHAT, ModelCapabilities.VISION));
+        visionModel.setCapabilities(Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION));
         visionModel.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         visionModel.setPriority(1);
 
@@ -398,7 +366,7 @@ class SpringAIGatewayTest {
     void supports_fixedModel_presentInRegistry_returnsTrue() {
         SpringAIModelConfig qwen = new SpringAIModelConfig();
         qwen.setName("qwen3.5");
-        qwen.setCapabilities(List.of(ModelCapabilities.CHAT));
+        qwen.setCapabilities(Set.of(ModelCapabilities.CHAT));
         qwen.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         when(springAIModelRegistry.getByModelName(eq("qwen3.5"))).thenReturn(Optional.of(qwen));
 

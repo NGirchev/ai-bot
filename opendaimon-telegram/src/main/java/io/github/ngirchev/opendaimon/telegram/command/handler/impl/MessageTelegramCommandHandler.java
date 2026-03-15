@@ -207,13 +207,20 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                                                    UnsupportedModelCapabilityException e) {
         log.warn("Model capability mismatch: {}", e.getMessage());
         Integer replyToMessageId = message != null ? message.getMessageId() : null;
+        String errorText = e.getModelId() != null
+                ? messageLocalizationService.getMessage(
+                        "common.error.model.unsupported.capability",
+                        command.languageCode(),
+                        e.getModelId(),
+                        e.getMissingCapabilities())
+                : e.getMessage();
         if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
             String errorRoleContent = userMessage.getAssistantRole() != null
                     ? userMessage.getAssistantRole().getContent() : null;
             telegramMessageService.saveAssistantErrorMessage(
-                    telegramUser, e.getMessage(), modelCapabilities.toString(), errorRoleContent, null);
+                    telegramUser, errorText, modelCapabilities.toString(), errorRoleContent, null);
         }
-        sendErrorMessage(command.telegramId(), e.getMessage(), replyToMessageId);
+        sendErrorMessage(command.telegramId(), errorText, replyToMessageId);
     }
 
     private void handleProcessingException(TelegramCommand command, Message message, OpenDaimonMessage userMessage,

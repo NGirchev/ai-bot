@@ -1,11 +1,12 @@
 package io.github.ngirchev.opendaimon.common.ai.factory;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import io.github.ngirchev.opendaimon.bulkhead.model.UserPriority;
 import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
+import io.github.ngirchev.opendaimon.common.ai.ModelDescriptionCache;
+import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
@@ -23,12 +24,23 @@ import static io.github.ngirchev.opendaimon.common.ai.command.AICommand.ROLE_FIE
 import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.*;
 
 @Slf4j
-@RequiredArgsConstructor
 public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICommand<?>> {
 
     private final IUserPriorityService userPriorityService;
     private final int maxOutputTokens;
     private final Integer maxReasoningTokens;
+    private final ModelDescriptionCache modelDescriptionCache;
+
+    public DefaultAICommandFactory(IUserPriorityService userPriorityService, int maxOutputTokens, Integer maxReasoningTokens) {
+        this(userPriorityService, maxOutputTokens, maxReasoningTokens, null);
+    }
+
+    public DefaultAICommandFactory(IUserPriorityService userPriorityService, int maxOutputTokens, Integer maxReasoningTokens, ModelDescriptionCache modelDescriptionCache) {
+        this.userPriorityService = userPriorityService;
+        this.maxOutputTokens = maxOutputTokens;
+        this.maxReasoningTokens = maxReasoningTokens;
+        this.modelDescriptionCache = modelDescriptionCache;
+    }
 
     @Override
     public int priority() {
@@ -74,8 +86,21 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             // Temperature 0.35 for general assistant (recommended range: 0.3-0.4)
             String fixedModelId = metadata.get(PREFERRED_MODEL_ID_FIELD);
             if (StringUtils.hasText(fixedModelId)) {
+                Set<ModelCapabilities> fixedModelCapabilities;
+                if (modelDescriptionCache != null) {
+                    fixedModelCapabilities = modelDescriptionCache.getCapabilities(fixedModelId);
+                    if (!fixedModelCapabilities.containsAll(modelCapabilities)) {
+                        Set<ModelCapabilities> missing = modelCapabilities.stream()
+                                .filter(c -> !fixedModelCapabilities.contains(c))
+                                .collect(java.util.stream.Collectors.toSet());
+                        throw new UnsupportedModelCapabilityException(fixedModelId, missing);
+                    }
+                } else {
+                    fixedModelCapabilities = Set.of();
+                }
                 return new FixedModelChatAICommand(
                         fixedModelId,
+                        fixedModelCapabilities,
                         0.35,
                         maxOutputTokens,
                         maxReasoningTokens,

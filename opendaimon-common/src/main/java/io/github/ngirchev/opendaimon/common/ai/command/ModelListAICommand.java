@@ -13,7 +13,6 @@ public record ModelListAICommand(Map<String, String> metadata) implements AIComm
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T extends AICommandOptions> T options() {
         return null;
     }

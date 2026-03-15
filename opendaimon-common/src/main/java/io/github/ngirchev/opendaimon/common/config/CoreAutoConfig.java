@@ -17,6 +17,7 @@ import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.bulkhead.service.NoOpPriorityRequestExecutor;
 import io.github.ngirchev.opendaimon.bulkhead.service.PriorityRequestExecutor;
 import io.github.ngirchev.opendaimon.bulkhead.service.impl.NoOpUserPriorityService;
+import io.github.ngirchev.opendaimon.common.ai.ModelDescriptionCache;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactory;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
@@ -181,11 +182,13 @@ public class CoreAutoConfig {
     @ConditionalOnMissingBean(DefaultAICommandFactory.class)
     public AICommandFactory<AICommand, ICommand<?>> defaultAiCommandFactory(
             IUserPriorityService userPriorityService,
-            CoreCommonProperties coreCommonProperties) {
+            CoreCommonProperties coreCommonProperties,
+            ObjectProvider<ModelDescriptionCache> modelDescriptionCacheProvider) {
         return new DefaultAICommandFactory(
                 userPriorityService,
                 coreCommonProperties.getMaxOutputTokens(),
-                coreCommonProperties.getMaxReasoningTokens());
+                coreCommonProperties.getMaxReasoningTokens(),
+                modelDescriptionCacheProvider.getIfAvailable());
     }
 
     @Bean

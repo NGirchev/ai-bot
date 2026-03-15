@@ -21,6 +21,7 @@ public record RawModelAICommand(
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public OpenDaimonChatOptions options() {
         return new OpenDaimonChatOptions(
                 temp,

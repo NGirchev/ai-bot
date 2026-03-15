@@ -59,7 +59,7 @@ class OpenRouterModelRotationAspectTest {
         modelConfig = new SpringAIModelConfig();
         modelConfig.setName("meta-llama/llama-3.2-3b-instruct:free");
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT, ModelCapabilities.FREE));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT, ModelCapabilities.FREE));
         modelConfig.setPriority(1);
 
         chatOptions = new OpenDaimonChatOptions(0.7, 1000, null, null, false, null);
@@ -69,7 +69,7 @@ class OpenRouterModelRotationAspectTest {
     private static SpringAIModelConfig configWithName(String name) {
         SpringAIModelConfig c = new SpringAIModelConfig();
         c.setName(name);
-        c.setCapabilities(List.of(ModelCapabilities.CHAT, ModelCapabilities.FREE));
+        c.setCapabilities(Set.of(ModelCapabilities.CHAT, ModelCapabilities.FREE));
         c.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         c.setPriority(1);
         return c;
@@ -95,7 +95,7 @@ class OpenRouterModelRotationAspectTest {
         // Arrange: model without FREE — registry returns one candidate
         aspect = new OpenRouterModelRotationAspect(registry, 3);
         modelConfig.setName("gpt-4");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         when(registry.getCandidatesByCapabilities(any(), any())).thenReturn(List.of(modelConfig));
         Object[] args = new Object[]{modelConfig, command};
@@ -170,7 +170,7 @@ class OpenRouterModelRotationAspectTest {
     void whenAutoModelWithoutMaxPriceZero_thenNoRotation() throws Throwable {
         aspect = new OpenRouterModelRotationAspect(registry, 3);
         modelConfig.setName("openrouter/auto");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.AUTO));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.AUTO));
         chatOptions = new OpenDaimonChatOptions(0.7, 1000, null, null, false, Map.of("max_price", 0.001));
 
         when(registry.getCandidatesByCapabilities(any(), any()))

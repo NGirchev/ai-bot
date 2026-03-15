@@ -423,7 +423,7 @@ class SpringAIGatewayIT {
         SpringAIModelConfig streamingTestModelConfig() {
             SpringAIModelConfig c = new SpringAIModelConfig();
             c.setName("test-streaming-model");
-            c.setCapabilities(List.of(ModelCapabilities.CHAT));
+            c.setCapabilities(Set.of(ModelCapabilities.CHAT));
             c.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
             c.setPriority(1);
             return c;

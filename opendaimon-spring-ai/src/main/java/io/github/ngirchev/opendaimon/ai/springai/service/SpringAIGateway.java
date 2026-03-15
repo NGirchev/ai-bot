@@ -141,24 +141,25 @@ public class SpringAIGateway implements AIGateway {
             modelConfig = springAIModelRegistry.getByModelName(fixed.fixedModelId())
                     .orElseThrow(() -> new RuntimeException("Selected model not found in registry: " + fixed.fixedModelId()));
 
-            // Validate: image attachments require VISION capability
-            if (fixed.hasImageAttachments()) {
-                boolean supportsVision = modelConfig.getCapabilities() != null
-                        && modelConfig.getCapabilities().contains(ModelCapabilities.VISION);
-                if (!supportsVision) {
-                    throw new UnsupportedModelCapabilityException(
-                            "Model \"" + fixed.fixedModelId() + "\" does not support images. " +
-                            "Please select a model with vision capability or switch to Auto mode.");
-                }
+            // Second-line guard: validate live registry capabilities at execution time
+            Set<ModelCapabilities> liveCapabilities = modelConfig.getCapabilities() != null
+                    ? modelConfig.getCapabilities() : Set.of();
+            Set<ModelCapabilities> requiredCapabilities = command.modelCapabilities();
+            if (!requiredCapabilities.isEmpty() && !liveCapabilities.containsAll(requiredCapabilities)) {
+                Set<ModelCapabilities> missing = requiredCapabilities.stream()
+                        .filter(c -> !liveCapabilities.contains(c))
+                        .collect(java.util.stream.Collectors.toSet());
+                throw new UnsupportedModelCapabilityException(fixed.fixedModelId(), missing);
+            }
+            // Explicit VISION guard (catches cases where modelDescriptionCache was unavailable at command creation)
+            if (fixed.hasImageAttachments() && !liveCapabilities.contains(ModelCapabilities.VISION)) {
+                throw new UnsupportedModelCapabilityException(
+                        fixed.fixedModelId(), Set.of(ModelCapabilities.VISION));
             }
         } else {
             // AUTO mode — use capability-based selection
             List<SpringAIModelConfig> candidates = springAIModelRegistry
                     .getCandidatesByCapabilities(command.modelCapabilities(), null, userPriority);
-            if (candidates.isEmpty()) {
-                candidates = springAIModelRegistry
-                        .getCandidatesByCapabilities(Set.of(ModelCapabilities.AUTO), null, userPriority);
-            }
             modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
             if (modelConfig == null) {
                 throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
@@ -188,19 +189,8 @@ public class SpringAIGateway implements AIGateway {
             if (!StringUtils.hasText(modelName)) {
                 throw new IllegalArgumentException("Model name is required in request body");
             }
-            var modelConfigOpt = springAIModelRegistry.getByModelName(modelName);
-            SpringAIModelConfig modelConfig;
-            if (modelConfigOpt.isPresent()) {
-                modelConfig = modelConfigOpt.get();
-            } else {
-                Set<ModelCapabilities> caps = Set.of(ModelCapabilities.AUTO);
-                List<SpringAIModelConfig> fallback = springAIModelRegistry.getCandidatesByCapabilities(caps, null);
-                if (fallback.isEmpty()) {
-                    throw new IllegalArgumentException("Unknown model: " + modelName);
-                }
-                log.warn("Model not found in registry, using first candidate by capabilities. requested={}, using={}", modelName, fallback.getFirst().getName());
-                modelConfig = fallback.getFirst();
-            }
+            var modelConfig = springAIModelRegistry.getByModelName(modelName)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown model: " + modelName));
             return chatService.callChatFromBody(
                     modelConfig,
                     requestBody,

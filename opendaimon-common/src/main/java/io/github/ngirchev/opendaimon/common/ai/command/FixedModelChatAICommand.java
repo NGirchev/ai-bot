@@ -18,6 +18,7 @@ import java.util.Set;
  */
 public record FixedModelChatAICommand(
         String fixedModelId,
+        Set<ModelCapabilities> modelCapabilities,
         double temp,
         int maxTokens,
         Integer maxReasoningTokens,
@@ -28,17 +29,13 @@ public record FixedModelChatAICommand(
         Map<String, Object> body,
         List<Attachment> attachments) implements AICommand {
 
-    @Override
-    public Set<ModelCapabilities> modelCapabilities() {
-        return Set.of();
-    }
-
     public boolean hasImageAttachments() {
         return attachments != null && attachments.stream()
                 .anyMatch(a -> a.type() == AttachmentType.IMAGE);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public OpenDaimonChatOptions options() {
         Map<String, Object> optionsBody = body != null ? new HashMap<>(body) : new HashMap<>();
         if (maxReasoningTokens != null) {

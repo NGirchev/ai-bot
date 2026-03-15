@@ -48,6 +48,7 @@ import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelsApiClient
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelsProperties;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelStatsRecorder;
 import io.github.ngirchev.opendaimon.ai.springai.retry.metrics.OpenRouterStreamMetricsTracker;
+import io.github.ngirchev.opendaimon.common.ai.ModelDescriptionCache;
 import io.github.ngirchev.opendaimon.common.service.AIGatewayRegistry;
 import io.github.ngirchev.opendaimon.common.service.SummarizationService;
 
@@ -173,6 +174,12 @@ public class SpringAIAutoConfig {
                 : 1;
         int safeMaxAttempts = Math.max(maxAttempts, 1);
         return new OpenRouterModelRotationAspect(openRouterRotationRegistry, safeMaxAttempts);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ModelDescriptionCache modelDescriptionCache(SpringAIModelRegistry registry) {
+        return registry::getCapabilities;
     }
 
     @Bean

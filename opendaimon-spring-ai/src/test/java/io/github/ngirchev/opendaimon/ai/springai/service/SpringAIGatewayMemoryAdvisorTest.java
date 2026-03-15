@@ -107,7 +107,7 @@ class SpringAIGatewayMemoryAdvisorTest {
         // Setup model
         modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
         modelConfig.setPriority(1);
         

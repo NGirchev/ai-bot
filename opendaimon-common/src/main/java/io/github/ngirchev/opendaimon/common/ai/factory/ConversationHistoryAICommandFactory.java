@@ -129,6 +129,7 @@ public class ConversationHistoryAICommandFactory implements AICommandFactory<AIC
             if (StringUtils.hasText(fixedModelId)) {
                 return new FixedModelChatAICommand(
                         fixedModelId,
+                        modelCapabilities,
                         0.35,
                         maxOutputTokens,
                         maxReasoningTokens,

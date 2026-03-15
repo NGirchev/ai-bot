@@ -22,6 +22,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -45,7 +46,7 @@ class SpringAIChatServiceTest {
         chatService = new SpringAIChatService(promptFactory, openRouterStreamMetricsTrackerProvider);
         modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
     }
 
@@ -151,7 +152,7 @@ class SpringAIChatServiceTest {
         when(requestSpec.call().chatResponse()).thenReturn(mockResponse);
         SpringAIModelConfig configWithNullName = new SpringAIModelConfig();
         configWithNullName.setName(null);
-        configWithNullName.setCapabilities(List.of(ModelCapabilities.CHAT));
+        configWithNullName.setCapabilities(Set.of(ModelCapabilities.CHAT));
         configWithNullName.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
         when(promptFactory.preparePrompt(
                 eq(configWithNullName),
