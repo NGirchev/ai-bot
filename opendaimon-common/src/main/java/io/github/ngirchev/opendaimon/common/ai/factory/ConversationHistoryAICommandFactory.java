@@ -124,7 +124,8 @@ public class ConversationHistoryAICommandFactory implements AICommandFactory<AIC
             Set<ModelCapabilities> modelCapabilities = determineModelTypes(attachments);
 
             // Temperature 0.35 for general assistant (recommended range: 0.3-0.4)
-            String systemRole = assistantRole.getContent();
+            String systemRole = DefaultAICommandFactory.resolveLanguagePlaceholder(
+                    assistantRole.getContent(), metadata.get(LANGUAGE_CODE_FIELD));
             String fixedModelId = metadata.get(PREFERRED_MODEL_ID_FIELD);
             if (StringUtils.hasText(fixedModelId)) {
                 return new FixedModelChatAICommand(

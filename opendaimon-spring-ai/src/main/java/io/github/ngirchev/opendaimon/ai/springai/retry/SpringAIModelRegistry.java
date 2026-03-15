@@ -1,5 +1,6 @@
 package io.github.ngirchev.opendaimon.ai.springai.retry;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
@@ -422,6 +423,28 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             if (cooldownMs > 0) {
                 stats.cooldownUntilEpochMs = System.currentTimeMillis() + cooldownMs;
             }
+        }
+        if (status == 404) {
+            logModelDetailsFromOpenRouter(modelId);
+        }
+    }
+
+    private void logModelDetailsFromOpenRouter(String modelId) {
+        if (openRouterClient == null || openRouterProperties == null || openRouterProperties.getApi() == null) {
+            return;
+        }
+        try {
+            String baseUrl = normalizeOpenRouterBaseUrl(openRouterProperties.getApi().getUrl().trim());
+            String apiKey = openRouterProperties.getApi().getKey();
+            JsonNode node = openRouterClient.fetchModelDetails(baseUrl, apiKey, modelId);
+            if (node == null || node.isMissingNode() || node.isNull()) {
+                log.warn("OpenRouter 404 diagnostic: model={} not found via GET /v1/models/{}", modelId, modelId);
+            } else {
+                log.warn("OpenRouter 404 diagnostic: model={} exists in API. architecture={}, supported_parameters={}",
+                        modelId, node.path("architecture"), node.path("supported_parameters"));
+            }
+        } catch (Exception e) {
+            log.warn("OpenRouter 404 diagnostic fetch failed for model={}: {}", modelId, e.getMessage());
         }
     }
 

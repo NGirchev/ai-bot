@@ -27,7 +27,7 @@ open-daimon:
       enabled: ${ADMIN_ENABLED:true}
       telegram-id: ${ADMIN_TELEGRAM_ID:}
       rest-email: ${ADMIN_REST_EMAIL:}
-    assistant-role: "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Also you are speaking only in Russian language."
+    assistant-role: "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Always respond in {language_code} language."
     # Hard limit for entire prompt to API (system + history + current). When exceeded — trim/reject and return error.
     max-total-prompt-tokens: 32000
     # Max tokens per user message; when exceeded can reject with hint to shorten.
@@ -213,6 +213,9 @@ open-daimon:
               - CHAT
               - TOOL_CALLING
               - SUMMARIZATION
+              - VISION
+              - MODERATION
+              - WEB
             provider-type: OLLAMA
             priority: 1
             # allowed-roles not set — accessible to all roles

@@ -53,7 +53,7 @@ public class CoreCommonProperties {
     }
 
     @NotBlank(message = "assistantRole must not be blank")
-    private String assistantRole = "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Also you are speaking only in Russian language.";
+    private String assistantRole = "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Always respond in {language_code} language.";
     
     /**
      * Summarization of long conversations (token trigger, threshold, how many recent messages to keep).
@@ -176,4 +176,4 @@ public class CoreCommonProperties {
          */
         private String restEmail;
     }
-} 
+}
