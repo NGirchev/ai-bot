@@ -24,10 +24,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +43,8 @@ class SummarizingChatMemoryTest {
 
     private static final String CONVERSATION_ID = "conv-1";
     private static final int MAX_MESSAGES = 5;
+    /** threshold = ceil(5 * 0.7) = 4 messages */
+    private static final double SUMMARY_TRIGGER_THRESHOLD = 0.7;
 
     private ChatMemoryRepository chatMemoryRepository;
     private SummarizingChatMemory summarizingChatMemory;
@@ -59,7 +64,8 @@ class SummarizingChatMemoryTest {
                 conversationThreadRepository,
                 messageRepository,
                 summarizationService,
-                MAX_MESSAGES
+                MAX_MESSAGES,
+                SUMMARY_TRIGGER_THRESHOLD
         );
     }
 
@@ -104,6 +110,32 @@ class SummarizingChatMemoryTest {
 
         List<Message> result = summarizingChatMemory.get(CONVERSATION_ID);
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void whenGetWithMessageCountAtThreshold_thenSummarizationTriggered() {
+        // threshold = ceil(5 * 0.7) = 4; adding exactly 4 messages should trigger summarization
+        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u1"));
+        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a1"));
+        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u2"));
+        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a2"));
+        when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.empty());
+
+        summarizingChatMemory.get(CONVERSATION_ID);
+
+        verify(conversationThreadRepository).findByThreadKey(CONVERSATION_ID);
+    }
+
+    @Test
+    void whenGetWithMessageCountBelowThreshold_thenSummarizationNotTriggered() {
+        // threshold = ceil(5 * 0.7) = 4; 3 messages must not trigger
+        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u1"));
+        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a1"));
+        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u2"));
+
+        summarizingChatMemory.get(CONVERSATION_ID);
+
+        verify(conversationThreadRepository, never()).findByThreadKey(any());
     }
 
     @Test
@@ -203,6 +235,26 @@ class SummarizingChatMemoryTest {
                 .filter(m -> m instanceof SystemMessage)
                 .anyMatch(m -> ((SystemMessage) m).getText().contains("Summary of previous conversation"));
         assertFalse(hasSummaryContent);
+    }
+
+    @Test
+    void whenSummarizationServiceThrows_thenExceptionPropagatesFromGet() {
+        for (int i = 0; i < MAX_MESSAGES; i++) {
+            summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u" + i));
+            summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a" + i));
+        }
+        ConversationThread thread = new ConversationThread();
+        thread.setThreadKey(CONVERSATION_ID);
+        when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.of(thread));
+        when(messageRepository.findByThreadAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(eq(thread), any()))
+                .thenReturn(new ArrayList<>(List.of(createMockMessage(), createMockMessage())));
+        doThrow(new RuntimeException("AI model unavailable"))
+                .when(summarizationService).summarizeThread(any(), anyList());
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> summarizingChatMemory.get(CONVERSATION_ID));
+        assertTrue(ex.getMessage().contains("summarization failed") || ex.getCause() != null,
+                "Expected summarization failure message, got: " + ex.getMessage());
     }
 
     private static OpenDaimonMessage createMockMessage() {

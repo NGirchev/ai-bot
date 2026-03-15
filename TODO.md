@@ -30,3 +30,4 @@
 - [ ] UI Dashboard with full administration functionality
 - [ ] Image generation
 - [ ] Encoding DB
+- [ ] Asynchronous processing for telegram

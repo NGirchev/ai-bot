@@ -34,21 +34,27 @@ public class SummarizingChatMemory implements ChatMemory {
     private final OpenDaimonMessageRepository messageRepository;
     private final SummarizationService summarizationService;
     private final Integer maxMessages; // Max messages from MessageWindowChatMemory
+    /** Message count at which summarization is triggered (maxMessages * summaryTriggerThreshold). */
+    private final int summarizationThreshold;
 
     public SummarizingChatMemory(
             ChatMemoryRepository chatMemoryRepository,
             ConversationThreadRepository conversationThreadRepository,
             OpenDaimonMessageRepository messageRepository,
             SummarizationService summarizationService,
-            Integer maxMessages) {
+            Integer maxMessages,
+            double summaryTriggerThreshold) {
         this.conversationThreadRepository = conversationThreadRepository;
         this.messageRepository = messageRepository;
         this.summarizationService = summarizationService;
         this.maxMessages = maxMessages;
+        this.summarizationThreshold = Math.max(1, (int) Math.ceil(maxMessages * summaryTriggerThreshold));
         this.delegate = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
                 .maxMessages(maxMessages)
                 .build();
+        log.info("SummarizingChatMemory initialized: maxMessages={}, summaryTriggerThreshold={}, summarizationThreshold={}",
+                maxMessages, summaryTriggerThreshold, this.summarizationThreshold);
     }
 
     @Override
@@ -60,10 +66,10 @@ public class SummarizingChatMemory implements ChatMemory {
         // Check message count in ChatMemory
         int messageCount = messages.size();
         
-        // If more than maxMessages, trigger summarization
-        if (messageCount >= maxMessages) {
-            log.debug("ChatMemory has {} messages (max: {}), triggering summarization for conversationId {}", 
-                messageCount, maxMessages, conversationId);
+        // If message count reached threshold (summaryTriggerThreshold * maxMessages), trigger summarization
+        if (messageCount >= summarizationThreshold) {
+            log.debug("ChatMemory has {} messages (threshold: {}, max: {}), triggering summarization for conversationId {}",
+                messageCount, summarizationThreshold, maxMessages, conversationId);
             
             // Run summarization and update ChatMemory
             if (performSummarizationAndUpdateChatMemory(conversationId)) {
@@ -99,7 +105,8 @@ public class SummarizingChatMemory implements ChatMemory {
      * 4. Adds summary as SystemMessage to ChatMemory (delegate.add)
      *
      * @param conversationId conversation id
-     * @return true if summarization succeeded, false otherwise
+     * @return true if summarization succeeded and summary was stored; false if there is nothing to summarize
+     * @throws RuntimeException if the AI call failed — propagates to the caller to surface the error to the user
      */
     private boolean performSummarizationAndUpdateChatMemory(@NonNull String conversationId) {
         try {
@@ -158,7 +165,8 @@ public class SummarizingChatMemory implements ChatMemory {
             }
         } catch (Exception e) {
             log.error("Error during summarization for conversationId {}", conversationId, e);
-            return false;
+            throw new RuntimeException(
+                    "Conversation summarization failed. Please start a new session (/newthread).", e);
         }
     }
 

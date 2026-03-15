@@ -300,14 +300,17 @@ public class SpringAIAutoConfig {
             ConversationThreadRepository conversationThreadRepository,
             OpenDaimonMessageRepository messageRepository,
             SummarizationService summarizationService,
-            SpringAIProperties springAIProperties) {
+            SpringAIProperties springAIProperties,
+            CoreCommonProperties coreCommonProperties) {
         
+        double summaryTriggerThreshold = coreCommonProperties.getSummarization().getSummaryTriggerThreshold();
         return new SummarizingChatMemory(
                 chatMemoryRepository,
                 conversationThreadRepository,
                 messageRepository,
                 summarizationService,
-                springAIProperties.getHistoryWindowSize()
+                springAIProperties.getHistoryWindowSize(),
+                summaryTriggerThreshold
         );
     }
 

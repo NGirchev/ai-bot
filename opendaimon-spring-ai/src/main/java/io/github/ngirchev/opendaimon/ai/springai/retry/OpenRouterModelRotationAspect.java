@@ -240,7 +240,11 @@ public class OpenRouterModelRotationAspect {
     }
 
     private static boolean isRetryable400Body(String body) {
-        return body != null && body.contains("Conversation roles must alternate");
+        if (body == null) {
+            return false;
+        }
+        return body.contains("Conversation roles must alternate")
+                || body.contains("Developer instruction is not enabled");
     }
 
     /**
