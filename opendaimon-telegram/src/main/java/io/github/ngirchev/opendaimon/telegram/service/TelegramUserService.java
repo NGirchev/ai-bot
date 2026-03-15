@@ -67,11 +67,7 @@ public class TelegramUserService implements IUserService {
         TelegramUser user = telegramUserRepository.findByTelegramId(telegramUser.getId())
                 .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         
-        String languageCode = user.getLanguageCode() != null && !user.getLanguageCode().isBlank()
-                ? user.getLanguageCode() : "en";
-        String enhancedRoleContent = addLanguageRequirement(assistantRoleContent, languageCode);
-        
-        AssistantRole role = assistantRoleService.updateActiveRole(user, enhancedRoleContent);
+        AssistantRole role = assistantRoleService.updateActiveRole(user, assistantRoleContent);
         user.setCurrentAssistantRole(role);
         OffsetDateTime now = OffsetDateTime.now();
         user.setUpdatedAt(now);
@@ -79,29 +75,6 @@ public class TelegramUserService implements IUserService {
         return telegramUserRepository.save(user);
     }
 
-    /**
-     * Appends a requirement to the role prompt to consider user locale and answer in the corresponding language.
-     */
-    private String addLanguageRequirement(String roleContent, String languageCode) {
-        if (roleContent == null || roleContent.trim().isEmpty()) {
-            return roleContent;
-        }
-        
-        String normalizedLangCode = languageCode != null && !languageCode.isBlank()
-                ? languageCode.trim().toLowerCase().split("-")[0] : "en";
-        String languageRequirement = String.format(
-                " Consider user locale [%s] and always respond in the corresponding language, unless the user asks otherwise.",
-                normalizedLangCode);
-        
-        String enhanced = roleContent.trim();
-        if (!enhanced.endsWith(".") && !enhanced.endsWith("!") && !enhanced.endsWith("?")) {
-            enhanced += ".";
-        }
-        enhanced += languageRequirement;
-        
-        return enhanced;
-    }
-    
     /**
      * Returns the active assistant role for the user, creating one with default content if none exists.
      *
@@ -122,10 +95,7 @@ public class TelegramUserService implements IUserService {
 
         AssistantRole role = managedUser.getCurrentAssistantRole();
         if (role == null) {
-            String languageCode = managedUser.getLanguageCode() != null && !managedUser.getLanguageCode().isBlank()
-                    ? managedUser.getLanguageCode() : "en";
-            String enhancedDefaultContent = addLanguageRequirement(defaultContent, languageCode);
-            role = assistantRoleService.getOrCreateDefaultRole(managedUser, enhancedDefaultContent);
+            role = assistantRoleService.getOrCreateDefaultRole(managedUser, defaultContent);
 
             managedUser.setCurrentAssistantRole(role);
             OffsetDateTime now = OffsetDateTime.now();
@@ -161,31 +131,7 @@ public class TelegramUserService implements IUserService {
         user.setUpdatedAt(now);
         user.setLastActivityAt(now);
 
-        Optional<AssistantRole> activeRole = assistantRoleService.getActiveRole(user);
-        if (activeRole.isPresent()) {
-            String currentContent = activeRole.get().getContent();
-            String baseContent = stripLanguageRequirement(currentContent);
-            String enhancedContent = addLanguageRequirement(baseContent, normalized);
-            AssistantRole updated = assistantRoleService.updateActiveRole(user, enhancedContent);
-            user.setCurrentAssistantRole(updated);
-        }
-
         return telegramUserRepository.save(user);
-    }
-
-    /**
-     * Strips the locale requirement suffix from role content so it can be reapplied with a new language.
-     */
-    private String stripLanguageRequirement(String roleContent) {
-        if (roleContent == null || roleContent.isBlank()) {
-            return roleContent;
-        }
-        String marker = " Consider user locale ";
-        int idx = roleContent.indexOf(marker);
-        if (idx < 0) {
-            return roleContent.trim();
-        }
-        return roleContent.substring(0, idx).trim();
     }
 
     /**

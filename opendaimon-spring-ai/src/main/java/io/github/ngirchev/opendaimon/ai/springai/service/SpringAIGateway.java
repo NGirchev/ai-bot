@@ -27,10 +27,12 @@ import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.OpenDaimonChatOptions;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIResponse;
 import io.github.ngirchev.opendaimon.common.service.AIUtils;
 import io.github.ngirchev.opendaimon.common.exception.DocumentContentNotExtractableException;
+import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AttachmentType;
 import io.github.ngirchev.opendaimon.bulkhead.model.UserPriority;
@@ -91,6 +93,9 @@ public class SpringAIGateway implements AIGateway {
 
     @Override
     public boolean supports(AICommand command) {
+        if (command instanceof FixedModelChatAICommand fixed) {
+            return springAIModelRegistry.getByModelName(fixed.fixedModelId()).isPresent();
+        }
         return !springAIModelRegistry.getCandidatesByCapabilities(command.modelCapabilities(), null).isEmpty();
     }
 
@@ -112,6 +117,8 @@ public class SpringAIGateway implements AIGateway {
         } catch (WebClientResponseException e) {
             log.error(LOG_ERROR_CALLING_SPRING_AI, e.getMessage());
             throw new RuntimeException("Failed to generate response from Spring AI", e);
+        } catch (UnsupportedModelCapabilityException e) {
+            throw e;
         } catch (DocumentContentNotExtractableException e) {
             throw e;
         } catch (Exception e) {
@@ -126,16 +133,38 @@ public class SpringAIGateway implements AIGateway {
 
     private AIResponse executeChatWithOptions(OpenDaimonChatOptions chatOptions, AICommand command, List<Message> messages) {
         UserPriority userPriority = resolveUserPriority(command);
-        String preferredModelId = command.metadata() != null
-                ? command.metadata().get(AICommand.PREFERRED_MODEL_ID_FIELD) : null;
-        List<SpringAIModelConfig> candidates = springAIModelRegistry.getCandidatesByCapabilities(command.modelCapabilities(), preferredModelId, userPriority);
-        if (candidates.isEmpty()) {
-            candidates = springAIModelRegistry.getCandidatesByCapabilities(Set.of(ModelCapabilities.AUTO), preferredModelId, userPriority);
+
+        SpringAIModelConfig modelConfig;
+
+        if (command instanceof FixedModelChatAICommand fixed) {
+            // User explicitly selected a model — use it directly, bypass capability filter
+            modelConfig = springAIModelRegistry.getByModelName(fixed.fixedModelId())
+                    .orElseThrow(() -> new RuntimeException("Selected model not found in registry: " + fixed.fixedModelId()));
+
+            // Validate: image attachments require VISION capability
+            if (fixed.hasImageAttachments()) {
+                boolean supportsVision = modelConfig.getCapabilities() != null
+                        && modelConfig.getCapabilities().contains(ModelCapabilities.VISION);
+                if (!supportsVision) {
+                    throw new UnsupportedModelCapabilityException(
+                            "Model \"" + fixed.fixedModelId() + "\" does not support images. " +
+                            "Please select a model with vision capability or switch to Auto mode.");
+                }
+            }
+        } else {
+            // AUTO mode — use capability-based selection
+            List<SpringAIModelConfig> candidates = springAIModelRegistry
+                    .getCandidatesByCapabilities(command.modelCapabilities(), null, userPriority);
+            if (candidates.isEmpty()) {
+                candidates = springAIModelRegistry
+                        .getCandidatesByCapabilities(Set.of(ModelCapabilities.AUTO), null, userPriority);
+            }
+            modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
+            if (modelConfig == null) {
+                throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
+            }
         }
-        SpringAIModelConfig modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
-        if (modelConfig == null) {
-            throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
-        }
+
         if (modelConfig.getProviderType() == null) {
             throw new IllegalStateException(
                     "Model from registry has null providerType. model=" + modelConfig.getName()
@@ -311,7 +340,7 @@ public class SpringAIGateway implements AIGateway {
 
     private void addSystemAndUserMessagesIfNeeded(List<Message> messages, OpenDaimonChatOptions chatOptions, AICommand command) {
         if (StringUtils.hasText(chatOptions.systemRole())) {
-            String systemRole = chatOptions.systemRole();
+            String systemRole = appendLanguageInstruction(chatOptions.systemRole(), command);
             boolean alreadyPresent = messages.stream()
                     .filter(SystemMessage.class::isInstance)
                     .map(SystemMessage.class::cast)
@@ -328,9 +357,13 @@ public class SpringAIGateway implements AIGateway {
                 .filter(UserMessage.class::isInstance)
                 .map(UserMessage.class::cast)
                 .anyMatch(m -> userRole.equals(m.getText()));
-        List<Attachment> attachments = command instanceof ChatAICommand chatCommand ? chatCommand.attachments() : List.of();
-        log.info("Gateway: addingUserMessage={}, attachmentsCount={}, commandIsChatAICommand={}",
-                !userAlreadyPresent, attachments != null ? attachments.size() : 0, command instanceof ChatAICommand);
+        List<Attachment> attachments = command instanceof ChatAICommand chatCommand
+                ? chatCommand.attachments()
+                : command instanceof FixedModelChatAICommand fixed
+                        ? fixed.attachments()
+                        : List.of();
+        log.info("Gateway: addingUserMessage={}, attachmentsCount={}, commandType={}",
+                !userAlreadyPresent, attachments != null ? attachments.size() : 0, command.getClass().getSimpleName());
         if (userAlreadyPresent) {
             return;
         }
@@ -388,6 +421,26 @@ public class SpringAIGateway implements AIGateway {
         }
 
         return null;
+    }
+
+    private String appendLanguageInstruction(String systemRole, AICommand command) {
+        if (command == null || command.metadata() == null) {
+            return systemRole;
+        }
+        String languageCode = command.metadata().get(AICommand.LANGUAGE_CODE_FIELD);
+        if (languageCode == null || languageCode.isBlank()) {
+            return systemRole;
+        }
+        String languageName = switch (languageCode.toLowerCase()) {
+            case "ru" -> "Russian";
+            case "en" -> "English";
+            case "de" -> "German";
+            case "fr" -> "French";
+            case "es" -> "Spanish";
+            case "zh" -> "Chinese";
+            default -> languageCode;
+        };
+        return systemRole + "\nIMPORTANT: Always respond in " + languageName + " (" + languageCode + ").";
     }
 
     private UserPriority resolveUserPriority(AICommand command) {

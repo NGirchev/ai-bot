@@ -107,7 +107,7 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
             telegramBotProvider.getObject().clearStatus(message.getFrom().getId());
             
             // Send confirmation replying to user message
-            Integer replyToMessageId = message != null ? message.getMessageId() : null;
+            Integer replyToMessageId = message.getMessageId();
             sendMessage(command.telegramId(), "✅ Assistant role updated successfully!", replyToMessageId);
             return null;
         }
@@ -138,7 +138,6 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
             return;
         }
 
-        // Update role (TelegramUserService will add locale requirement)
         telegramUserService.updateAssistantRole(cq.getFrom(), preset.get().content());
         telegramBotProvider.getObject().clearStatus(cq.getFrom().getId());
         ackCallback(cq.getId(), "✅ Role updated");

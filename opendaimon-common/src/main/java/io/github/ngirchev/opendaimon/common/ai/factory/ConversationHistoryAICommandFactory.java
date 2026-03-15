@@ -7,6 +7,8 @@ import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
+import org.springframework.util.StringUtils;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.command.IChatCommand;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
@@ -122,40 +124,41 @@ public class ConversationHistoryAICommandFactory implements AICommandFactory<AIC
             Set<ModelCapabilities> modelCapabilities = determineModelTypes(attachments);
 
             // Temperature 0.35 for general assistant (recommended range: 0.3-0.4)
-            String systemRole = buildSystemRole(assistantRole.getContent(), metadata.get(LANGUAGE_CODE_FIELD));
-            return new ChatAICommand(
-                    modelCapabilities,
-                    0.35,
-                    maxOutputTokens,
-                    maxReasoningTokens,
-                    systemRole,
-                    command.userText(),
-                    command.stream(),
-                    metadata,
-                    body,
-                    attachments
-            );
+            String systemRole = assistantRole.getContent();
+            String fixedModelId = metadata.get(PREFERRED_MODEL_ID_FIELD);
+            if (StringUtils.hasText(fixedModelId)) {
+                return new FixedModelChatAICommand(
+                        fixedModelId,
+                        0.35,
+                        maxOutputTokens,
+                        maxReasoningTokens,
+                        systemRole,
+                        command.userText(),
+                        command.stream(),
+                        metadata,
+                        body,
+                        attachments
+                );
+            } else {
+                return new ChatAICommand(
+                        modelCapabilities,
+                        0.35,
+                        maxOutputTokens,
+                        maxReasoningTokens,
+                        systemRole,
+                        command.userText(),
+                        command.stream(),
+                        metadata,
+                        body,
+                        attachments
+                );
+            }
         } catch (Exception e) {
             log.error("Failed to build context with history for thread {}: {}", threadKey, e.getMessage(), e);
             throw new RuntimeException("Failed to create AI command with conversation history", e);
         }
     }
 
-    private static String buildSystemRole(String roleContent, String languageCode) {
-        if (languageCode == null || languageCode.isBlank()) {
-            return roleContent;
-        }
-        String languageName = switch (languageCode.toLowerCase()) {
-            case "ru" -> "Russian";
-            case "en" -> "English";
-            case "de" -> "German";
-            case "fr" -> "French";
-            case "es" -> "Spanish";
-            case "zh" -> "Chinese";
-            default -> languageCode;
-        };
-        return roleContent + "\nIMPORTANT: Always respond in " + languageName + " (" + languageCode + ").";
-    }
 
     /**
      * Determines ModelTypes for the command.

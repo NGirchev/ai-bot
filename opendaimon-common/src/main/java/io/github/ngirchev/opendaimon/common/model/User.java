@@ -56,6 +56,9 @@ public class User extends AbstractEntity<Long> implements IUserObject {
     @Column(name = "is_admin")
     private Boolean isAdmin;
     
+    @Column(name = "preferred_model_id")
+    private String preferredModelId;
+
     /**
      * Current active assistant role
      */

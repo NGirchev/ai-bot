@@ -228,6 +228,7 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
 
     @Override
     public String getSupportedCommandText(String languageCode) {
-        return messageLocalizationService.getMessage("telegram.command.model.desc", languageCode);
+        // Not shown in the command menu — model selection is available via the custom keyboard
+        return null;
     }
 }

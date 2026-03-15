@@ -41,11 +41,21 @@ public class PersistentKeyboardService {
      * @param thread current conversation thread (may be null, shows "—" for context then)
      */
     public void sendKeyboard(Long chatId, Long userId, ConversationThread thread) {
+        sendKeyboard(chatId, userId, thread, null);
+    }
+
+    /**
+     * Sends keyboard showing {@code actualModelName} as the model label (used after a successful response
+     * to display the model that was actually invoked, not the stored preference).
+     */
+    public void sendKeyboard(Long chatId, Long userId, ConversationThread thread, String actualModelName) {
         if (!telegramProperties.getCommands().isModelEnabled()) {
             return;
         }
         try {
-            String modelLabel = buildModelLabel(userId);
+            String modelLabel = actualModelName != null
+                    ? TelegramCommand.MODEL_KEYBOARD_PREFIX + " " + actualModelName
+                    : buildModelLabel(userId);
             String contextLabel = buildContextLabel(thread);
 
             KeyboardRow row = new KeyboardRow();

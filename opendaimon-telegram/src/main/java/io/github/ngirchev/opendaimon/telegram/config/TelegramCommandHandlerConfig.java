@@ -18,6 +18,7 @@ import io.github.ngirchev.opendaimon.telegram.command.handler.impl.*;
 import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
 import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramMessageService;
+import io.github.ngirchev.opendaimon.telegram.repository.TelegramUserRepository;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserSessionService;
 
@@ -174,8 +175,9 @@ public class TelegramCommandHandlerConfig {
 
     @Bean
     @ConditionalOnMissingBean
-    public UserModelPreferenceService userModelPreferenceService() {
-        return new UserModelPreferenceService();
+    public UserModelPreferenceService userModelPreferenceService(
+            TelegramUserRepository telegramUserRepository) {
+        return new UserModelPreferenceService(telegramUserRepository);
     }
 
     @Bean

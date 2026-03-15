@@ -3,6 +3,7 @@ package io.github.ngirchev.opendaimon.common.ai.factory;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.command.IChatCommand;
 import io.github.ngirchev.opendaimon.common.command.ICommandType;
 import io.github.ngirchev.opendaimon.common.model.AssistantRole;
@@ -192,11 +193,64 @@ class ConversationHistoryAICommandFactoryTest {
         assertTrue(chatCommand.modelCapabilities().contains(ModelCapabilities.VISION));
     }
 
+    // -----------------------------------------------------------------------
+    // FixedModelChatAICommand — preferred model in metadata
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createCommand_whenPreferredModelInMetadata_createsFixedModelCommand() {
+        AssistantRole role = new AssistantRole();
+        role.setId(ASSISTANT_ROLE_ID);
+        role.setContent("You are helpful.");
+        ConversationThread thread = new ConversationThread();
+        thread.setThreadKey(THREAD_KEY);
+        when(assistantRoleService.findById(ASSISTANT_ROLE_ID)).thenReturn(Optional.of(role));
+        when(threadService.findByThreadKey(THREAD_KEY)).thenReturn(Optional.of(thread));
+        when(summarizationService.shouldTriggerSummarization(thread)).thenReturn(false);
+        when(contextBuilder.buildContext(any(), any(), any())).thenReturn(List.of());
+
+        Map<String, String> metadata = metadataWithModel(THREAD_KEY, ASSISTANT_ROLE_ID.toString(), USER_ID_STR, "qwen3.5");
+        AICommand result = factory.createCommand(new TestChatCommand("Hello"), metadata);
+
+        assertInstanceOf(FixedModelChatAICommand.class, result,
+                "Must create FixedModelChatAICommand when PREFERRED_MODEL_ID_FIELD is set in metadata");
+        FixedModelChatAICommand fixed = (FixedModelChatAICommand) result;
+        assertEquals("qwen3.5", fixed.fixedModelId());
+        assertEquals("Hello", fixed.userRole());
+    }
+
+    @Test
+    void createCommand_whenNoPreferredModel_createsChatAICommand() {
+        AssistantRole role = new AssistantRole();
+        role.setId(ASSISTANT_ROLE_ID);
+        role.setContent("You are helpful.");
+        ConversationThread thread = new ConversationThread();
+        thread.setThreadKey(THREAD_KEY);
+        when(assistantRoleService.findById(ASSISTANT_ROLE_ID)).thenReturn(Optional.of(role));
+        when(threadService.findByThreadKey(THREAD_KEY)).thenReturn(Optional.of(thread));
+        when(summarizationService.shouldTriggerSummarization(thread)).thenReturn(false);
+        when(contextBuilder.buildContext(any(), any(), any())).thenReturn(List.of());
+
+        AICommand result = factory.createCommand(new TestChatCommand("Hello"),
+                metadata(THREAD_KEY, ASSISTANT_ROLE_ID.toString(), USER_ID_STR));
+
+        assertInstanceOf(ChatAICommand.class, result);
+    }
+
     private static Map<String, String> metadata(String threadKey, String assistantRoleId, String userId) {
         return Map.of(
                 THREAD_KEY_FIELD, threadKey,
                 ASSISTANT_ROLE_ID_FIELD, assistantRoleId,
                 USER_ID_FIELD, userId);
+    }
+
+    private static Map<String, String> metadataWithModel(String threadKey, String assistantRoleId, String userId, String modelId) {
+        java.util.HashMap<String, String> m = new java.util.HashMap<>();
+        m.put(THREAD_KEY_FIELD, threadKey);
+        m.put(ASSISTANT_ROLE_ID_FIELD, assistantRoleId);
+        m.put(USER_ID_FIELD, userId);
+        m.put(AICommand.PREFERRED_MODEL_ID_FIELD, modelId);
+        return m;
     }
 
     private record TestChatCommand(String userText) implements IChatCommand<ICommandType> {

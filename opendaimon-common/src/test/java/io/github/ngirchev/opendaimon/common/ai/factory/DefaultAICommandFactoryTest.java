@@ -9,6 +9,7 @@ import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.command.IChatCommand;
 import io.github.ngirchev.opendaimon.common.command.ICommandType;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
@@ -146,6 +147,50 @@ class DefaultAICommandFactoryTest {
         assertNotNull(chatCommand.attachments());
         assertTrue(chatCommand.attachments().isEmpty());
         assertFalse(chatCommand.hasImageAttachments());
+    }
+
+    // -----------------------------------------------------------------------
+    // FixedModelChatAICommand — preferred model in metadata
+    // -----------------------------------------------------------------------
+
+    @Test
+    void whenPreferredModelInMetadata_thenCreatesFixedModelCommand() {
+        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        when(userPriorityService.getUserPriority(10L)).thenReturn(UserPriority.REGULAR);
+
+        Map<String, String> metadata = new java.util.HashMap<>();
+        metadata.put(AICommand.PREFERRED_MODEL_ID_FIELD, "qwen3.5");
+
+        AICommand command = factory.createCommand(new TestChatCommand(10L, "hello", false), metadata);
+
+        assertInstanceOf(FixedModelChatAICommand.class, command,
+                "Must create FixedModelChatAICommand when preferred model is set");
+        assertEquals("qwen3.5", ((FixedModelChatAICommand) command).fixedModelId());
+    }
+
+    @Test
+    void whenPreferredModelInMetadata_vipUser_stillCreatesFixedModelCommand() {
+        // VIP user selects model explicitly — must honour the choice, not fall back to VIP capabilities
+        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        when(userPriorityService.getUserPriority(11L)).thenReturn(UserPriority.VIP);
+
+        Map<String, String> metadata = new java.util.HashMap<>();
+        metadata.put(AICommand.PREFERRED_MODEL_ID_FIELD, "qwen3.5");
+
+        AICommand command = factory.createCommand(new TestChatCommand(11L, "hello", false), metadata);
+
+        assertInstanceOf(FixedModelChatAICommand.class, command);
+        assertEquals("qwen3.5", ((FixedModelChatAICommand) command).fixedModelId());
+    }
+
+    @Test
+    void whenNoPreferredModel_thenCreatesChatAICommand() {
+        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        when(userPriorityService.getUserPriority(12L)).thenReturn(UserPriority.REGULAR);
+
+        AICommand command = factory.createCommand(new TestChatCommand(12L, "hello", false), Map.of());
+
+        assertInstanceOf(ChatAICommand.class, command);
     }
 
     private record TestChatCommand(Long userId, String userText, boolean stream) implements IChatCommand<ICommandType> {

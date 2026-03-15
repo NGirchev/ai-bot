@@ -8,6 +8,8 @@ import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
+import org.springframework.util.StringUtils;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.command.IChatCommand;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
@@ -16,6 +18,7 @@ import io.github.ngirchev.opendaimon.common.model.AttachmentType;
 import java.util.*;
 
 import static io.github.ngirchev.opendaimon.common.ai.LlmParamNames.MAX_PRICE;
+import static io.github.ngirchev.opendaimon.common.ai.command.AICommand.PREFERRED_MODEL_ID_FIELD;
 import static io.github.ngirchev.opendaimon.common.ai.command.AICommand.ROLE_FIELD;
 import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.*;
 
@@ -69,18 +72,34 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             Set<ModelCapabilities> modelCapabilities = addVisionIfNeeded(baseModelCapabilities, attachments);
 
             // Temperature 0.35 for general assistant (recommended range: 0.3-0.4)
-            return new ChatAICommand(
-                    modelCapabilities,
-                    0.35,
-                    maxOutputTokens,
-                    maxReasoningTokens,
-                    metadata.get(ROLE_FIELD),
-                    chatCommand.userText(),
-                    chatCommand.stream(),
-                    metadata,
-                    body,
-                    attachments
-            );
+            String fixedModelId = metadata.get(PREFERRED_MODEL_ID_FIELD);
+            if (StringUtils.hasText(fixedModelId)) {
+                return new FixedModelChatAICommand(
+                        fixedModelId,
+                        0.35,
+                        maxOutputTokens,
+                        maxReasoningTokens,
+                        metadata.get(ROLE_FIELD),
+                        chatCommand.userText(),
+                        chatCommand.stream(),
+                        metadata,
+                        body,
+                        attachments
+                );
+            } else {
+                return new ChatAICommand(
+                        modelCapabilities,
+                        0.35,
+                        maxOutputTokens,
+                        maxReasoningTokens,
+                        metadata.get(ROLE_FIELD),
+                        chatCommand.userText(),
+                        chatCommand.stream(),
+                        metadata,
+                        body,
+                        attachments
+                );
+            }
         } else {
             throw new IllegalArgumentException("Supported type is IChatCommand");
         }

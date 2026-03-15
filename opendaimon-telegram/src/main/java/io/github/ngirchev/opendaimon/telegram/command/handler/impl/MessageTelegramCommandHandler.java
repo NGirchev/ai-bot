@@ -12,6 +12,7 @@ import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.exception.DocumentContentNotExtractableException;
+import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.exception.UserMessageTooLongException;
 import io.github.ngirchev.opendaimon.common.model.*;
 import io.github.ngirchev.opendaimon.common.service.*;
@@ -149,9 +150,9 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             }
 
             if (ctx.responseTextOpt().isPresent()) {
-                saveAndSendSuccessResponse(command, telegramUser, message, aiResponse, ctx, modelCapabilities,
+                String actualModel = saveAndSendSuccessResponse(command, telegramUser, message, aiResponse, ctx, modelCapabilities,
                         assistantRoleContent, startTime);
-                persistentKeyboardService.sendKeyboard(command.telegramId(), telegramUser.getId(), thread);
+                persistentKeyboardService.sendKeyboard(command.telegramId(), telegramUser.getId(), thread, actualModel);
             } else {
                 sendEmptyContentError(command, telegramUser, message, ctx, modelCapabilities, assistantRoleContent);
                 return null;
@@ -161,6 +162,9 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             return null;
         } catch (DocumentContentNotExtractableException e) {
             handleDocumentContentNotExtractable(command, message, userMessage, modelCapabilities, e);
+            return null;
+        } catch (UnsupportedModelCapabilityException e) {
+            handleUnsupportedModelCapability(command, message, userMessage, modelCapabilities, e);
             return null;
         } catch (Exception e) {
             handleProcessingException(command, message, userMessage, modelCapabilities, e);
@@ -193,6 +197,21 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                     modelCapabilities.toString(),
                     errorRoleContent,
                     null);
+        }
+        sendErrorMessage(command.telegramId(), e.getMessage(), replyToMessageId);
+    }
+
+    private void handleUnsupportedModelCapability(TelegramCommand command, Message message,
+                                                   OpenDaimonMessage userMessage,
+                                                   Set<ModelCapabilities> modelCapabilities,
+                                                   UnsupportedModelCapabilityException e) {
+        log.warn("Model capability mismatch: {}", e.getMessage());
+        Integer replyToMessageId = message != null ? message.getMessageId() : null;
+        if (userMessage != null && userMessage.getUser() instanceof TelegramUser telegramUser) {
+            String errorRoleContent = userMessage.getAssistantRole() != null
+                    ? userMessage.getAssistantRole().getContent() : null;
+            telegramMessageService.saveAssistantErrorMessage(
+                    telegramUser, e.getMessage(), modelCapabilities.toString(), errorRoleContent, null);
         }
         sendErrorMessage(command.telegramId(), e.getMessage(), replyToMessageId);
     }
@@ -262,15 +281,15 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
         return new ResponseContext(usefulResponseData, retrieveMessage(aiResponse), extractError(aiResponse), false);
     }
 
-    private void saveAndSendSuccessResponse(TelegramCommand command, TelegramUser telegramUser, Message message,
-                                            AIResponse aiResponse, ResponseContext ctx,
-                                            Set<ModelCapabilities> modelCapabilities, String assistantRoleContent,
-                                            long startTime) {
+    private String saveAndSendSuccessResponse(TelegramCommand command, TelegramUser telegramUser, Message message,
+                                              AIResponse aiResponse, ResponseContext ctx,
+                                              Set<ModelCapabilities> modelCapabilities, String assistantRoleContent,
+                                              long startTime) {
         String responseText = ctx.responseTextOpt().orElseThrow();
         long processingTime = System.currentTimeMillis() - startTime;
         String model = ctx.usefulResponseData() != null && ctx.usefulResponseData().containsKey("model")
                 ? String.valueOf(ctx.usefulResponseData().get("model"))
-                : "unknown";
+                : null;
         log.info("Gateway: [{}]. Model: [{}]", aiResponse.gatewaySource(), model);
         var assistantMessage = telegramMessageService.saveAssistantMessage(
                 telegramUser,
@@ -283,6 +302,7 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             sendMessage(command.telegramId(), AIUtils.convertMarkdownToHtml(responseText), message.getMessageId());
         }
         messageService.updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
+        return model;
     }
 
     private void sendEmptyContentError(TelegramCommand command, TelegramUser telegramUser, Message message,
