@@ -36,7 +36,8 @@ public class OpenRouterStreamMetricsTracker {
                         long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
                         int status = 599;
                         String responseBody = null;
-                        if (error instanceof WebClientResponseException w) {
+                        WebClientResponseException w = findWebClientException(error);
+                        if (w != null) {
                             status = w.getStatusCode().value();
                             responseBody = truncate(w.getResponseBodyAsString());
                         }
@@ -49,6 +50,16 @@ public class OpenRouterStreamMetricsTracker {
                         }
                     });
         });
+    }
+
+    private static WebClientResponseException findWebClientException(Throwable t) {
+        while (t != null) {
+            if (t instanceof WebClientResponseException w) {
+                return w;
+            }
+            t = t.getCause();
+        }
+        return null;
     }
 
     private String truncate(String body) {

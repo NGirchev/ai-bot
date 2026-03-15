@@ -72,6 +72,7 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         Set<String> openRouterIds = fetched.stream().map(OpenRouterModelEntry::id).filter(StringUtils::hasText).collect(Collectors.toSet());
 
         // Remove yml OPENAI models not present in OpenRouter response
+        List<String> removedYmlModels = new ArrayList<>();
         for (String name : new ArrayList<>(modelsByName.keySet())) {
             if (!ymlModelNames.contains(name)) {
                 continue;
@@ -80,8 +81,16 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             if (config != null && config.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI
                     && !openRouterIds.contains(name)) {
                 modelsByName.remove(name);
-                log.info("Removed from registry (not in OpenRouter): {}", name);
+                removedYmlModels.add(name);
             }
+        }
+        if (!removedYmlModels.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("yml models removed from registry (not found in OpenRouter API), count=").append(removedYmlModels.size()).append(":\n");
+            for (String name : removedYmlModels) {
+                sb.append("  - ").append(name).append("\n");
+            }
+            log.warn(sb.toString());
         }
 
         // Free models from API and after filters
