@@ -40,7 +40,7 @@ public class OpenRouterModelRotationAspect {
         var candidates = resolveCandidates(modelConfig, command);
 
         return rotate.stream()
-                ? streamWithRetry(pjp, args, candidates, 0)
+                ? streamWithRetry(pjp, args, candidates, 0, command)
                 : callWithRetry(pjp, args, candidates, command);
     }
 
@@ -80,23 +80,9 @@ public class OpenRouterModelRotationAspect {
             ProceedingJoinPoint pjp,
             Object[] baseArgs,
             List<SpringAIModelConfig> candidates,
-            int index
+            int index,
+            AICommand command
     ) {
-        // TODO test approach without defer
-//        try {
-//            if (index >= candidates.size()) {
-//                return new SpringAIStreamResponse(Flux.error(new RuntimeException("No models available for retry")));
-//            }
-//            SpringAIModelConfig candidate = candidates.get(index);
-//            String modelId = candidate.getName();
-//            Object[] args = replaceModelConfig(baseArgs, candidate);
-//            SpringAIStreamResponse result = (SpringAIStreamResponse) pjp.proceed(args);
-//            result.chatResponse().doOnNext()
-//            return result;
-//        } catch (Throwable e) {
-//            // retry handling needed here
-//            throw new RuntimeException(e);
-//        }
         if (index >= candidates.size()) {
             log.warn("OpenRouter stream retry: no candidates available (index={}, totalCandidates={})", index, candidates.size());
             return new SpringAIStreamResponse(Flux.error(new RuntimeException("No models available for retry")));
@@ -106,9 +92,12 @@ public class OpenRouterModelRotationAspect {
         Object[] args = replaceModelConfig(baseArgs, candidate);
         try {
             var response = (SpringAIStreamResponse) pjp.proceed(args);
-            response.chatResponse().onErrorResume(nextError -> {
+            int total = candidates.size();
+            var retryFlux = response.chatResponse().onErrorResume(nextError -> {
                 int attempt = index + 1;
-                int total = candidates.size();
+                if (command instanceof FixedModelChatAICommand && isGuardrailError(nextError)) {
+                    return Flux.error(new ModelGuardrailException(modelId));
+                }
                 boolean retryable = isRetryable(nextError);
                 log.warn("OpenRouter stream retry: error caught. model={}, retryable={}, attempt={} of {}, reason={}",
                         modelId, retryable, attempt, total, nextError.getMessage());
@@ -123,11 +112,14 @@ public class OpenRouterModelRotationAspect {
                 String nextModel = candidates.get(index + 1).getName();
                 log.warn("OpenRouter stream retry: switching from model={} to next candidate model={} (next attempt {} of {}). reason={}",
                         modelId, nextModel, index + 2, total, nextError.getMessage());
-                return streamWithRetry(pjp, baseArgs, candidates, index + 1).chatResponse();
+                return streamWithRetry(pjp, baseArgs, candidates, index + 1, command).chatResponse();
             });
-            return response;
+            return new SpringAIStreamResponse(retryFlux);
         } catch (Throwable t) {
             long latencyMs = 0L;
+            if (command instanceof FixedModelChatAICommand && isGuardrailError(t)) {
+                return new SpringAIStreamResponse(Flux.error(new ModelGuardrailException(modelId)));
+            }
             boolean retryable = isRetryable(t);
             log.warn("OpenRouter stream retry: sync error. model={}, retryable={}, attempt={} of {}, reason={}",
                     modelId, retryable, index + 1, candidates.size(), t.getMessage());
@@ -136,7 +128,7 @@ public class OpenRouterModelRotationAspect {
                 String nextModel = candidates.get(index + 1).getName();
                 log.warn("OpenRouter stream retry: switching from model={} to next candidate model={} (attempt {} of {}). reason={}",
                         modelId, nextModel, index + 2, candidates.size(), t.getMessage());
-                return streamWithRetry(pjp, baseArgs, candidates, index + 1);
+                return streamWithRetry(pjp, baseArgs, candidates, index + 1, command);
             }
             return new SpringAIStreamResponse(Flux.error(t));
         }

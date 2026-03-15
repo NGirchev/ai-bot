@@ -143,8 +143,10 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException(AIUtils.NO_SUPPORTED_AI_GATEWAY));
             AIResponse aiResponse;
+            ResponseContext ctx;
             try {
                 aiResponse = aiGateway.generateResponse(aiCommand);
+                ctx = extractResponseContext(aiResponse, command, message);
             } catch (ModelGuardrailException e) {
                 log.warn("Fixed model unavailable due to guardrail: model={}, userId={}", e.getModelId(), telegramUser.getId());
                 String notifyText = messageLocalizationService.getMessage(
@@ -152,11 +154,11 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                 sendMessage(command.telegramId(), notifyText, message.getMessageId());
                 userModelPreferenceService.clearPreference(telegramUser.getId());
                 metadata.remove(PREFERRED_MODEL_ID_FIELD);
-                AICommand fallbackCommand = aiCommandFactoryRegistry.createCommand(command, metadata);
-                modelCapabilities = fallbackCommand.modelCapabilities();
-                aiResponse = aiGateway.generateResponse(fallbackCommand);
+                aiCommand = aiCommandFactoryRegistry.createCommand(command, metadata);
+                modelCapabilities = aiCommand.modelCapabilities();
+                aiResponse = aiGateway.generateResponse(aiCommand);
+                ctx = extractResponseContext(aiResponse, command, message);
             }
-            ResponseContext ctx = extractResponseContext(aiResponse, command, message);
 
             if (ctx.responseTextOpt().isEmpty()) {
                 // One retry on empty content

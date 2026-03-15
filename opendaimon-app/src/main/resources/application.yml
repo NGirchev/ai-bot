@@ -133,12 +133,7 @@ open-daimon:
             allowed-roles: [ ADMIN, VIP ]
             include-model-ids:
               - nvidia/nemotron-3-super-120b-a12b:free
-              - meta-llama/llama-3.3-70b-instruct:free
-              - mistralai/mistral-small-3.1-24b-instruct:free
-              - google/gemini-2.0-flash-exp:free
               - google/gemma-3-27b-it:free
-              - openai/gpt-oss-120b:free
-              - openai/gpt-oss-20b:free
               - qwen/qwen3-next-80b-a3b-instruct:free
               - z-ai/glm-4.5-air:free
               - tngtech/tng-r1t-chimera:free
@@ -156,9 +151,7 @@ open-daimon:
               - nvidia/nemotron-3-nano-30b-a3b:free
               - nvidia/nemotron-nano-12b-v2-vl:free
               - nvidia/nemotron-nano-9b-v2:free
-              - openrouter/free
               - qwen/qwen3-4b:free
-              - qwen/qwen3-coder:free
               - qwen/qwen3-vl-235b-a22b-thinking
               - qwen/qwen3-vl-30b-a3b-thinking
               - stepfun/step-3.5-flash:free
@@ -209,6 +202,7 @@ open-daimon:
             priority: 3
             allowed-roles:
               - ADMIN
+              - VIP
           - name: "qwen3.5"
             capabilities:
               - CHAT
@@ -227,6 +221,20 @@ open-daimon:
             priority: 1
             # allowed-roles not set — accessible to all roles
           # Top 3 OpenRouter free models (explicit capabilities; others from include-model-ids get capabilities from API).
+          - name: "openrouter/free"
+            capabilities:
+              - AUTO
+              - CHAT
+              - TOOL_CALLING
+              - WEB
+              - SUMMARIZATION
+              - EMBEDDING
+              - VISION
+            provider-type: OPENAI
+            priority: 3
+            allowed-roles:
+              - ADMIN
+              - REGULAR
           - name: "meta-llama/llama-3.3-70b-instruct:free"
             capabilities:
               - CHAT
@@ -238,8 +246,10 @@ open-daimon:
               - FREE
             provider-type: OPENAI
             priority: 1
-            # allowed-roles not set — accessible to all roles
-          - name: "google/gemini-2.0-flash-exp:free"
+            allowed-roles:
+              - ADMIN
+              - REGULAR
+          - name: "mistralai/mistral-small-3.1-24b-instruct:free"
             capabilities:
               - CHAT
               - TOOL_CALLING
@@ -250,8 +260,10 @@ open-daimon:
               - FREE
             provider-type: OPENAI
             priority: 1
-            # allowed-roles not set — accessible to all roles
-          - name: "mistralai/mistral-small-3.1-24b-instruct:free"
+            allowed-roles:
+              - ADMIN
+              - REGULAR
+          - name: "google/gemini-2.0-flash-exp:free"
             capabilities:
               - CHAT
               - TOOL_CALLING
