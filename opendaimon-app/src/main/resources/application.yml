@@ -179,20 +179,6 @@ open-daimon:
       # Ollama models (run locally: ollama pull qwen2.5:7b, ollama pull qwen3-embedding:8b).
       models:
         list:
-          - name: "z-ai/glm-4.5v"
-            capabilities:
-              - AUTO
-              - CHAT
-              - TOOL_CALLING
-              - WEB
-              - SUMMARIZATION
-              - EMBEDDING
-              - VISION
-            provider-type: OPENAI
-            priority: 2
-            allowed-roles:
-              - ADMIN
-              - VIP
           - name: "openrouter/auto"
             capabilities:
               - AUTO
@@ -204,6 +190,19 @@ open-daimon:
               - VISION
             provider-type: OPENAI
             priority: 3
+            allowed-roles:
+              - ADMIN
+              - VIP
+          - name: "z-ai/glm-4.5v"
+            capabilities:
+              - CHAT
+              - TOOL_CALLING
+              - WEB
+              - SUMMARIZATION
+              - EMBEDDING
+              - VISION
+            provider-type: OPENAI
+            priority: 2
             allowed-roles:
               - ADMIN
               - VIP
