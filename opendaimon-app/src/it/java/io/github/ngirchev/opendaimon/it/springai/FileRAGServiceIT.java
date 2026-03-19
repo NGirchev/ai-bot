@@ -66,7 +66,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestPropertySource(properties = {
         "spring.autoconfigure.exclude=org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration",
         "open-daimon.common.bulkhead.enabled=false",
-        "open-daimon.common.manual-conversation-history.enabled=false",
         "open-daimon.ai.spring-ai.rag.enabled=true",
         "open-daimon.ai.spring-ai.rag.chunk-size=200",
         "open-daimon.ai.spring-ai.rag.chunk-overlap=50",

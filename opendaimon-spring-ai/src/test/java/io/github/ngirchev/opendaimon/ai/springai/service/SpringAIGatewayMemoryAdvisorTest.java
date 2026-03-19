@@ -90,8 +90,7 @@ class SpringAIGatewayMemoryAdvisorTest {
                 ollamaChatClient, // use ollama for openAiChatClient too for simplicity
                 mock(WebTools.class),
                 chatMemory,
-                springAIModelType,
-                true // useChatMemoryAdvisor = true
+                springAIModelType
         );
         
         // Create real SpringAIChatService

@@ -80,7 +80,7 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
             // Show current role
             AssistantRole currentRole = telegramUserService.getOrCreateAssistantRole(
                     user,
-                    coreCommonProperties.getAssistantRole()
+                    messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), lang)
             );
 
             // Load role data inside transaction to avoid LazyInitializationException
@@ -184,16 +184,14 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
 
     private List<RolePreset> getRolePresets(String lang) {
         return List.of(
-                new RolePreset("DEFAULT", messageLocalizationService.getMessage("telegram.role.preset.default", lang), coreCommonProperties.getAssistantRole()),
+                new RolePreset("DEFAULT", messageLocalizationService.getMessage("telegram.role.preset.default", lang),
+                        messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), lang)),
                 new RolePreset("COACH", messageLocalizationService.getMessage("telegram.role.preset.coach", lang),
-                        "You are a development and goals coach. You help clarify requests, "
-                        + "ask questions, suggest steps and support motivation. Keep answers short and structured."),
+                        messageLocalizationService.getMessage("role.content.coach", lang)),
                 new RolePreset("EDITOR", messageLocalizationService.getMessage("telegram.role.preset.editor", lang),
-                        "You are a text editor. You fix errors, "
-                        + "improve style and suggest better wording while preserving meaning."),
+                        messageLocalizationService.getMessage("role.content.editor", lang)),
                 new RolePreset("DEV", messageLocalizationService.getMessage("telegram.role.preset.developer", lang),
-                        "You are a senior Java developer and architect. "
-                        + "You suggest solutions, code and explanations, considering Spring Boot, clean architecture and best practices.")
+                        messageLocalizationService.getMessage("role.content.developer", lang))
         );
     }
 

@@ -52,17 +52,7 @@ Stream: determined by endpoint — `POST /api/v1/session` (sync) vs `POST /api/v
 
 | Priority | Factory | Condition |
 |----------|---------|-----------|
-| 0 | `ConversationHistoryAICommandFactory` | `threadKey` present in metadata |
 | `LOWEST_PRECEDENCE` | `DefaultAICommandFactory` | fallback (always supports) |
-
-In normal Telegram and REST flows `threadKey` is always set → `ConversationHistoryAICommandFactory` always wins.
-`DefaultAICommandFactory` is the fallback for programmatic use without thread context.
-
-### ConversationHistoryAICommandFactory — base capabilities
-
-Always uses `Set.of(CHAT)` as base, regardless of user priority.
-Adds `VISION` if image attachments are present.
-If `preferredModelId` in metadata → `FixedModelChatAICommand`, otherwise → `ChatAICommand`.
 
 ### DefaultAICommandFactory — base capabilities
 
@@ -149,7 +139,7 @@ Intercepts `callChat()` and `streamChat()`. Retries across candidates on retryab
 
 ### UC-1: Telegram — text message, auto model
 **Input:** user text, no attachments, no `preferredModelId`, `languageCode = "ru"`
-**Factory:** `ConversationHistoryAICommandFactory` → `ChatAICommand(capabilities={CHAT})`
+**Factory:** `DefaultAICommandFactory` → `ChatAICommand(capabilities={CHAT})`
 **Gateway:** AUTO mode → selects model by `CHAT` capability → appends `"Always respond in Russian language."` to system role
 **Output:** `SpringAIStreamResponse` → Telegram accumulates chunks → sends reply
 
@@ -157,7 +147,7 @@ Intercepts `callChat()` and `streamChat()`. Retries across candidates on retryab
 
 ### UC-2: Telegram — text message, fixed model
 **Input:** user text, no attachments, `preferredModelId = "google/gemma-3-27b-it:free"`
-**Factory:** `ConversationHistoryAICommandFactory` → `FixedModelChatAICommand(capabilities={CHAT}, fixedModelId=...)`
+**Factory:** `DefaultAICommandFactory` → `FixedModelChatAICommand(capabilities={CHAT}, fixedModelId=...)`
 **Gateway:** fixed path → validates `CHAT` ∈ model capabilities → ok → calls model
 **Output:** same as UC-1
 
@@ -165,8 +155,7 @@ Intercepts `callChat()` and `streamChat()`. Retries across candidates on retryab
 
 ### UC-3: Telegram — image, auto model (ADMIN user)
 **Input:** image attachment, no `preferredModelId`, user priority `ADMIN`
-**Note:** `ConversationHistoryAICommandFactory` uses `CHAT` base, not priority-based; priority affects model ranking but not base capabilities here.
-**Factory:** `ConversationHistoryAICommandFactory` → `ChatAICommand(capabilities={CHAT, VISION})`
+**Factory:** `DefaultAICommandFactory` → `ChatAICommand(capabilities={CHAT, VISION})`
 **Gateway:** AUTO → selects model with `CHAT` + `VISION` → builds `UserMessage` with `Media` → calls model
 **Output:** model describes the image
 
@@ -278,8 +267,7 @@ Intercepts `callChat()` and `streamChat()`. Retries across candidates on retryab
 ---
 
 ### UC-17: Telegram — user has no model preference, ADMIN priority
-**Note:** `ConversationHistoryAICommandFactory` always uses `CHAT` as base regardless of priority.
-**Factory:** `ChatAICommand(capabilities={CHAT})`
+**Factory:** `DefaultAICommandFactory` → `ChatAICommand(capabilities={CHAT})`
 **Model selection:** all models with `CHAT` capability are candidates, sorted by priority and ewma
 → priority-based access (`allowedRoles`) still filters models
 **Output:** best available model responds

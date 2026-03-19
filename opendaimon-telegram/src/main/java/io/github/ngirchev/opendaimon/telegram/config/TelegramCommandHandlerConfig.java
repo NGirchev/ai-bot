@@ -95,14 +95,16 @@ public class TelegramCommandHandlerConfig {
             MessageLocalizationService messageLocalizationService,
             ConversationThreadService threadService,
             ConversationThreadRepository threadRepository,
-            TelegramUserService telegramUserService) {
+            TelegramUserService telegramUserService,
+            ObjectProvider<PersistentKeyboardService> persistentKeyboardServiceProvider) {
         return new NewThreadTelegramCommandHandler(
                 telegramBotProvider,
                 typingIndicatorService,
                 messageLocalizationService,
                 threadService,
                 threadRepository,
-                telegramUserService);
+                telegramUserService,
+                persistentKeyboardServiceProvider);
     }
 
     @Bean
@@ -204,7 +206,8 @@ public class TelegramCommandHandlerConfig {
             UserModelPreferenceService userModelPreferenceService,
             AIGatewayRegistry aiGatewayRegistry,
             IUserPriorityService userPriorityService,
-            PersistentKeyboardService persistentKeyboardService) {
+            PersistentKeyboardService persistentKeyboardService,
+            ConversationThreadService conversationThreadService) {
         return new ModelTelegramCommandHandler(
                 telegramBotProvider,
                 typingIndicatorService,
@@ -213,7 +216,8 @@ public class TelegramCommandHandlerConfig {
                 userModelPreferenceService,
                 aiGatewayRegistry,
                 userPriorityService,
-                persistentKeyboardService
+                persistentKeyboardService,
+                conversationThreadService
         );
     }
 }

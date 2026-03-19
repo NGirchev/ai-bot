@@ -23,7 +23,7 @@ public class TelegramSummarizationListener {
     @EventListener
     public void onSummarizationStarted(SummarizationStartedEvent event) {
         try {
-            var threadOpt = conversationThreadRepository.findByThreadKey(event.conversationId());
+            var threadOpt = conversationThreadRepository.findByThreadKeyWithUser(event.conversationId());
             if (threadOpt.isEmpty()) {
                 return;
             }

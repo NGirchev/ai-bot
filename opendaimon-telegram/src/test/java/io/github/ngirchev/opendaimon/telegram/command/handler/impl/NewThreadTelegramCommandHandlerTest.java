@@ -8,6 +8,7 @@ import io.github.ngirchev.opendaimon.telegram.TelegramBot;
 import io.github.ngirchev.opendaimon.telegram.command.TelegramCommand;
 import io.github.ngirchev.opendaimon.telegram.command.TelegramCommandType;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +19,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.MessageSource;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -52,24 +52,25 @@ class NewThreadTelegramCommandHandlerTest {
     private ConversationThreadRepository threadRepository;
     @Mock
     private TelegramUserService userService;
+    @Mock
+    private ObjectProvider<PersistentKeyboardService> persistentKeyboardServiceProvider;
 
-    private MessageLocalizationService messageLocalizationService;
     private NewThreadTelegramCommandHandler handler;
 
     @BeforeEach
     void setUp() {
-        MessageSource messageSource = new ReloadableResourceBundleMessageSource();
-        ((ReloadableResourceBundleMessageSource) messageSource).setBasenames(
+        ReloadableResourceBundleMessageSource messageSource = new ReloadableResourceBundleMessageSource();
+        messageSource.setBasenames(
                 "classpath:messages/common", "classpath:messages/telegram");
-        ((ReloadableResourceBundleMessageSource) messageSource).setDefaultEncoding("UTF-8");
-        messageLocalizationService = new MessageLocalizationService(messageSource);
+        messageSource.setDefaultEncoding("UTF-8");
+        MessageLocalizationService messageLocalizationService = new MessageLocalizationService(messageSource);
 
-        ObjectProvider<TelegramBot> botProvider = mock(ObjectProvider.class);
+        ObjectProvider botProvider = mock(ObjectProvider.class);
         when(botProvider.getObject()).thenReturn(telegramBot);
 
         handler = new NewThreadTelegramCommandHandler(
                 botProvider, typingIndicatorService, messageLocalizationService,
-                threadService, threadRepository, userService);
+                threadService, threadRepository, userService, persistentKeyboardServiceProvider);
     }
 
     @Test

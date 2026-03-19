@@ -2,6 +2,7 @@ package io.github.ngirchev.opendaimon.rest.service;
 
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.model.OpenDaimonMessage;
+import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
 import io.github.ngirchev.opendaimon.common.model.AssistantRole;
 import io.github.ngirchev.opendaimon.common.model.RequestType;
 import io.github.ngirchev.opendaimon.common.service.OpenDaimonMessageService;
@@ -37,13 +38,15 @@ class RestMessageServiceTest {
     @Mock
     private CoreCommonProperties coreCommonProperties;
     @Mock
+    private MessageLocalizationService messageLocalizationService;
+    @Mock
     private HttpServletRequest request;
 
     private RestMessageService service;
 
     @BeforeEach
     void setUp() {
-        service = new RestMessageService(messageService, restUserService, coreCommonProperties);
+        service = new RestMessageService(messageService, restUserService, coreCommonProperties, messageLocalizationService);
     }
 
     @Nested
@@ -81,6 +84,7 @@ class RestMessageServiceTest {
         void whenAssistantRoleContentNull_usesDefaultFromProperties() {
             RestUser user = new RestUser();
             when(coreCommonProperties.getAssistantRole()).thenReturn("Default assistant");
+            when(messageLocalizationService.getMessage("Default assistant", null)).thenReturn("Default assistant");
             AssistantRole role = new AssistantRole();
             when(restUserService.getOrCreateAssistantRole(eq(user), eq("Default assistant"))).thenReturn(role);
             when(request.getHeader("X-Forwarded-For")).thenReturn(null);
@@ -99,6 +103,7 @@ class RestMessageServiceTest {
         void whenXForwardedForPresent_usesFirstValueAsClientIp() {
             RestUser user = new RestUser();
             when(coreCommonProperties.getAssistantRole()).thenReturn("Default");
+            when(messageLocalizationService.getMessage("Default", null)).thenReturn("Default");
             AssistantRole role = new AssistantRole();
             when(restUserService.getOrCreateAssistantRole(any(), any())).thenReturn(role);
             when(request.getHeader("X-Forwarded-For")).thenReturn("  proxy1, proxy2  ");

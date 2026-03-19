@@ -13,6 +13,7 @@ import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.exception.DocumentContentNotExtractableException;
 import io.github.ngirchev.opendaimon.common.exception.ModelGuardrailException;
+import io.github.ngirchev.opendaimon.common.exception.SummarizationFailedException;
 import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.exception.UserMessageTooLongException;
 import io.github.ngirchev.opendaimon.common.model.*;
@@ -168,15 +169,17 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             }
 
             if (ctx.responseTextOpt().isPresent()) {
-                String actualModel = saveSuccessResponse(telegramUser, aiResponse, ctx, modelCapabilities, assistantRoleContent, startTime);
+                SavedResponse saved = saveSuccessResponse(telegramUser, aiResponse, ctx, modelCapabilities, assistantRoleContent, startTime);
+                // Use thread from saved assistant message — it has up-to-date totalTokens after updateThreadCounters
+                ConversationThread updatedThread = saved.thread();
                 if (ctx.alreadySentInStream()) {
                     // Streaming: keyboard sent as a separate message (keyboard attached here would go to the wrong message)
                     // Status message text shows the actual model from response; keyboard buttons reflect DB preference.
-                    persistentKeyboardService.sendKeyboard(command.telegramId(), telegramUser.getId(), thread, actualModel);
+                    persistentKeyboardService.sendKeyboard(command.telegramId(), telegramUser.getId(), updatedThread, saved.model());
                 } else {
                     // Non-streaming: attach keyboard directly to the AI response message for reliable display on Android
                     ReplyKeyboardMarkup keyboard = persistentKeyboardService.buildKeyboardMarkup(
-                            telegramUser.getId(), thread);
+                            telegramUser.getId(), updatedThread);
                     sendMessage(command.telegramId(),
                             AIUtils.convertMarkdownToHtml(ctx.responseTextOpt().get()),
                             message.getMessageId(),
@@ -259,6 +262,11 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
             handleDocumentContentNotExtractable(command, message, userMessage, modelCapabilities, docEx);
             return;
         }
+        SummarizationFailedException sumEx = findCause(e, SummarizationFailedException.class);
+        if (sumEx != null) {
+            handleSummarizationFailed(command, message);
+            return;
+        }
         if (AIUtils.shouldLogWithoutStacktrace(e)) {
             log.error(AbstractTelegramCommandHandler.LOG_ERROR_PROCESSING_MESSAGE, AIUtils.getRootCauseMessage(e));
         } else {
@@ -280,10 +288,22 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
         sendErrorMessage(command.telegramId(), userFacingMessage, replyToMessageId);
     }
 
+    private void handleSummarizationFailed(TelegramCommand command, Message message) {
+        log.warn("Summarization failed for conversationId, notifying user to start new thread");
+        Integer replyToMessageId = message != null ? message.getMessageId() : null;
+        String errorText = messageLocalizationService.getMessage(
+                "telegram.summarization.failed", command.languageCode());
+        sendErrorMessage(command.telegramId(), errorText, replyToMessageId);
+    }
+
     private static DocumentContentNotExtractableException findDocumentContentNotExtractable(Throwable t) {
+        return findCause(t, DocumentContentNotExtractableException.class);
+    }
+
+    private static <T extends Throwable> T findCause(Throwable t, Class<T> type) {
         while (t != null) {
-            if (t instanceof DocumentContentNotExtractableException e) {
-                return e;
+            if (type.isInstance(t)) {
+                return type.cast(t);
             }
             t = t.getCause();
         }
@@ -317,9 +337,11 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
         return new ResponseContext(usefulResponseData, retrieveMessage(aiResponse), extractError(aiResponse), false);
     }
 
-    private String saveSuccessResponse(TelegramUser telegramUser, AIResponse aiResponse, ResponseContext ctx,
-                                       Set<ModelCapabilities> modelCapabilities, String assistantRoleContent,
-                                       long startTime) {
+    private record SavedResponse(String model, ConversationThread thread) {}
+
+    private SavedResponse saveSuccessResponse(TelegramUser telegramUser, AIResponse aiResponse, ResponseContext ctx,
+                                              Set<ModelCapabilities> modelCapabilities, String assistantRoleContent,
+                                              long startTime) {
         String responseText = ctx.responseTextOpt().orElseThrow();
         long processingTime = System.currentTimeMillis() - startTime;
         String model = ctx.usefulResponseData() != null && ctx.usefulResponseData().containsKey("model")
@@ -334,7 +356,7 @@ public class MessageTelegramCommandHandler extends AbstractTelegramCommandHandle
                 (int) processingTime,
                 ctx.usefulResponseData());
         messageService.updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        return model;
+        return new SavedResponse(model, assistantMessage.getThread());
     }
 
     private void sendEmptyContentError(TelegramCommand command, TelegramUser telegramUser, Message message,

@@ -101,11 +101,11 @@ public class PersistentKeyboardService {
         if (thread == null) {
             return TelegramCommand.CONTEXT_KEYBOARD_PREFIX + " —";
         }
-        long totalTokens = thread.getTotalTokens() != null ? thread.getTotalTokens() : 0L;
-        int maxContextTokens = coreCommonProperties.getSummarization().getMaxContextTokens();
-        double threshold = coreCommonProperties.getSummarization().getSummaryTriggerThreshold();
-        long triggerAt = (long) (maxContextTokens * threshold);
-        int pct = triggerAt > 0 ? (int) Math.min(100, totalTokens * 100 / triggerAt) : 0;
+        int totalMessages = thread.getTotalMessages() != null ? thread.getTotalMessages() : 0;
+        int baseline = thread.getMessagesAtLastSummarization() != null ? thread.getMessagesAtLastSummarization() : 0;
+        int messagesSinceSumm = Math.max(0, totalMessages - baseline);
+        int windowSize = coreCommonProperties.getSummarization().getMessageWindowSize();
+        int pct = windowSize > 0 ? (int) Math.min(100, messagesSinceSumm * 100 / windowSize) : 0;
         return TelegramCommand.CONTEXT_KEYBOARD_PREFIX + " " + pct + "%";
     }
 }

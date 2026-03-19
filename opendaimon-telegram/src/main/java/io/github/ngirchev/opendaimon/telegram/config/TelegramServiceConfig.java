@@ -85,12 +85,14 @@ public class TelegramServiceConfig {
             OpenDaimonMessageService messageService,
             TelegramUserService telegramUserService,
             CoreCommonProperties coreCommonProperties,
+            MessageLocalizationService messageLocalizationService,
             ObjectProvider<StorageProperties> storagePropertiesProvider,
             ObjectProvider<TelegramMessageService> telegramMessageServiceSelfProvider) {
         return new TelegramMessageService(
                 messageService,
                 telegramUserService,
                 coreCommonProperties,
+                messageLocalizationService,
                 storagePropertiesProvider,
                 telegramMessageServiceSelfProvider);
     }

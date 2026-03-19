@@ -82,7 +82,6 @@ import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.*;
         "spring.autoconfigure.exclude=org.springframework.ai.model.ollama.autoconfigure.OllamaAutoConfiguration," +
                 "org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration",
         "open-daimon.common.bulkhead.enabled=false",
-        "open-daimon.common.manual-conversation-history.enabled=false",
         "open-daimon.ai.spring-ai.mock=false"
 })
 class SpringAIGatewayOpenRouterIT {
@@ -225,6 +224,7 @@ class SpringAIGatewayOpenRouterIT {
         
         ChatAICommand command = new ChatAICommand(
                 Set.of(AUTO, CHAT, VISION),
+                Set.of(),
                 0.7,
                 200,
                 null,

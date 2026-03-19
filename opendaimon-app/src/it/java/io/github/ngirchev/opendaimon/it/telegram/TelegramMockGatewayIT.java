@@ -179,11 +179,6 @@ class TelegramMockGatewayIT {
         }
 
         @Bean
-        public TokenCounter tokenCounter(CoreCommonProperties coreCommonProperties) {
-            return new TokenCounter(coreCommonProperties);
-        }
-
-        @Bean
         public ConversationThreadService conversationThreadService(
                 ConversationThreadRepository threadRepository,
                 OpenDaimonMessageRepository messageRepository
@@ -197,7 +192,7 @@ class TelegramMockGatewayIT {
                 ConversationThreadService conversationThreadService,
                 AssistantRoleService assistantRoleService,
                 CoreCommonProperties coreCommonProperties,
-                TokenCounter tokenCounter,
+                MessageLocalizationService messageLocalizationService,
                 ObjectProvider<OpenDaimonMessageService> messageServiceSelfProvider
         ) {
             return new OpenDaimonMessageService(
@@ -205,7 +200,8 @@ class TelegramMockGatewayIT {
                     conversationThreadService,
                     assistantRoleService,
                     coreCommonProperties,
-                    tokenCounter,
+                    messageLocalizationService,
+                    new TokenCounter(),
                     messageServiceSelfProvider
             );
         }
@@ -262,6 +258,7 @@ class TelegramMockGatewayIT {
                 OpenDaimonMessageService messageService,
                 TelegramUserService telegramUserService,
                 CoreCommonProperties coreCommonProperties,
+                MessageLocalizationService messageLocalizationService,
                 ObjectProvider<StorageProperties> storagePropertiesProvider,
                 ObjectProvider<TelegramMessageService> telegramMessageServiceSelfProvider
         ) {
@@ -269,6 +266,7 @@ class TelegramMockGatewayIT {
                     messageService,
                     telegramUserService,
                     coreCommonProperties,
+                    messageLocalizationService,
                     storagePropertiesProvider,
                     telegramMessageServiceSelfProvider
             );
@@ -305,8 +303,9 @@ class TelegramMockGatewayIT {
         }
 
         @Bean
-        public UserModelPreferenceService userModelPreferenceService() {
-            return new UserModelPreferenceService();
+        public UserModelPreferenceService userModelPreferenceService(
+                TelegramUserRepository telegramUserRepository) {
+            return new UserModelPreferenceService(telegramUserRepository);
         }
 
         @Bean

@@ -30,14 +30,6 @@ public class SpringAIProperties {
 
     private HttpLogs httpLogs = new HttpLogs();
     
-    /**
-     * ChatMemory history window size (number of recent messages).
-     * Used by SummarizingChatMemory to determine when to trigger summarization.
-     */
-    @NotNull(message = "historyWindowSize is required")
-    @Min(value = 1, message = "historyWindowSize must be >= 1")
-    private Integer historyWindowSize;
-    
     private Serper serper = new Serper();
     
     private Models models = new Models();

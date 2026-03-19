@@ -36,6 +36,23 @@ public class SpringAIModelConfig {
     private List<UserPriority> allowedRoles;
 
     /**
+     * Per-model reasoning token budget. Overrides global CoreCommonProperties.maxReasoningTokens.
+     * null  — use global default.
+     * 0     — disable reasoning for this model.
+     * &gt;0 — use this value instead of global.
+     */
+    @Min(value = 0, message = "maxReasoningTokens must be >= 0")
+    private Integer maxReasoningTokens;
+
+    /**
+     * Ollama-only: controls the "think" (extended reasoning) mode for models that support it (e.g. Qwen3).
+     * null  — do not send the parameter (Ollama default; some models return 400 if the param is sent).
+     * true  — enable thinking.
+     * false — disable thinking (recommended for Qwen3 to avoid empty responses when token budget is exhausted by thinking).
+     */
+    private Boolean think;
+
+    /**
      * Returns true if the given user priority is allowed to use this model.
      * If allowedRoles is null or empty — all roles are allowed.
      */

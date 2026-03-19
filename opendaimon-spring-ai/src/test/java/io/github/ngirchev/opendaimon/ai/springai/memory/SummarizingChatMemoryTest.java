@@ -17,10 +17,13 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+
+import io.github.ngirchev.opendaimon.common.exception.SummarizationFailedException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,16 +40,14 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link SummarizingChatMemory}.
+ * Summarization triggers when message count in ChatMemory reaches maxMessages.
  */
 @ExtendWith(MockitoExtension.class)
 class SummarizingChatMemoryTest {
 
     private static final String CONVERSATION_ID = "conv-1";
     private static final int MAX_MESSAGES = 5;
-    /** threshold = ceil(5 * 0.7) = 4 messages */
-    private static final double SUMMARY_TRIGGER_THRESHOLD = 0.7;
 
-    private ChatMemoryRepository chatMemoryRepository;
     private SummarizingChatMemory summarizingChatMemory;
 
     @Mock
@@ -55,17 +56,19 @@ class SummarizingChatMemoryTest {
     private OpenDaimonMessageRepository messageRepository;
     @Mock
     private SummarizationService summarizationService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @BeforeEach
     void setUp() {
-        chatMemoryRepository = new InMemoryChatMemoryRepository();
+        ChatMemoryRepository chatMemoryRepository = new InMemoryChatMemoryRepository();
         summarizingChatMemory = new SummarizingChatMemory(
                 chatMemoryRepository,
                 conversationThreadRepository,
                 messageRepository,
                 summarizationService,
-                MAX_MESSAGES,
-                SUMMARY_TRIGGER_THRESHOLD
+                eventPublisher,
+                MAX_MESSAGES
         );
     }
 
@@ -113,12 +116,11 @@ class SummarizingChatMemoryTest {
     }
 
     @Test
-    void whenGetWithMessageCountAtThreshold_thenSummarizationTriggered() {
-        // threshold = ceil(5 * 0.7) = 4; adding exactly 4 messages should trigger summarization
-        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u1"));
-        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a1"));
-        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u2"));
-        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a2"));
+    void whenGetWithMessageCountAtMax_thenSummarizationTriggered() {
+        // Adding exactly maxMessages messages reaches the threshold
+        for (int i = 0; i < MAX_MESSAGES; i++) {
+            summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u" + i));
+        }
         when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.empty());
 
         summarizingChatMemory.get(CONVERSATION_ID);
@@ -127,11 +129,11 @@ class SummarizingChatMemoryTest {
     }
 
     @Test
-    void whenGetWithMessageCountBelowThreshold_thenSummarizationNotTriggered() {
-        // threshold = ceil(5 * 0.7) = 4; 3 messages must not trigger
-        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u1"));
-        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a1"));
-        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u2"));
+    void whenGetWithMessageCountBelowMax_thenSummarizationNotTriggered() {
+        // Adding maxMessages - 1 messages must not trigger
+        for (int i = 0; i < MAX_MESSAGES - 1; i++) {
+            summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u" + i));
+        }
 
         summarizingChatMemory.get(CONVERSATION_ID);
 
@@ -238,7 +240,7 @@ class SummarizingChatMemoryTest {
     }
 
     @Test
-    void whenSummarizationServiceThrows_thenExceptionPropagatesFromGet() {
+    void whenSummarizationServiceThrows_thenSummarizationFailedExceptionPropagates() {
         for (int i = 0; i < MAX_MESSAGES; i++) {
             summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u" + i));
             summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a" + i));
@@ -251,10 +253,8 @@ class SummarizingChatMemoryTest {
         doThrow(new RuntimeException("AI model unavailable"))
                 .when(summarizationService).summarizeThread(any(), anyList());
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
+        assertThrows(SummarizationFailedException.class,
                 () -> summarizingChatMemory.get(CONVERSATION_ID));
-        assertTrue(ex.getMessage().contains("summarization failed") || ex.getCause() != null,
-                "Expected summarization failure message, got: " + ex.getMessage());
     }
 
     private static OpenDaimonMessage createMockMessage() {

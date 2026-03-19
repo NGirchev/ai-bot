@@ -69,11 +69,13 @@ public class RestAutoConfig {
     public RestMessageService restMessageService(
             OpenDaimonMessageService messageService,
             RestUserService restUserService,
-            CoreCommonProperties coreCommonProperties) {
+            CoreCommonProperties coreCommonProperties,
+            MessageLocalizationService messageLocalizationService) {
         return new RestMessageService(
                 messageService,
                 restUserService,
-                coreCommonProperties);
+                coreCommonProperties,
+                messageLocalizationService);
     }
 
     @Bean

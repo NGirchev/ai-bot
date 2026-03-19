@@ -56,8 +56,7 @@ class SpringAIPromptFactoryTest {
                 chatClient,
                 webTools,
                 null,
-                springAIModelType,
-                false
+                springAIModelType
         );
         ollamaModelConfig = new SpringAIModelConfig();
         ollamaModelConfig.setName("ollama-model");

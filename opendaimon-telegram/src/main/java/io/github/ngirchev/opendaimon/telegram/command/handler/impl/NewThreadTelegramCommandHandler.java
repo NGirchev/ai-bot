@@ -14,6 +14,7 @@ import io.github.ngirchev.opendaimon.telegram.command.TelegramCommandType;
 import io.github.ngirchev.opendaimon.telegram.command.handler.AbstractTelegramCommandHandlerWithResponseSend;
 import io.github.ngirchev.opendaimon.telegram.command.handler.TelegramCommandHandlerException;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
 
@@ -28,18 +29,21 @@ public class NewThreadTelegramCommandHandler extends AbstractTelegramCommandHand
     private final ConversationThreadService threadService;
     private final ConversationThreadRepository threadRepository;
     private final TelegramUserService userService;
-    
+    private final ObjectProvider<PersistentKeyboardService> persistentKeyboardServiceProvider;
+
     public NewThreadTelegramCommandHandler(
             ObjectProvider<TelegramBot> telegramBotProvider,
             TypingIndicatorService typingIndicatorService,
             MessageLocalizationService messageLocalizationService,
             ConversationThreadService threadService,
             ConversationThreadRepository threadRepository,
-            TelegramUserService userService) {
+            TelegramUserService userService,
+            ObjectProvider<PersistentKeyboardService> persistentKeyboardServiceProvider) {
         super(telegramBotProvider, typingIndicatorService, messageLocalizationService);
         this.threadService = threadService;
         this.threadRepository = threadRepository;
         this.userService = userService;
+        this.persistentKeyboardServiceProvider = persistentKeyboardServiceProvider;
     }
     
     @Override
@@ -70,14 +74,20 @@ public class NewThreadTelegramCommandHandler extends AbstractTelegramCommandHand
         
         // Create new thread
         ConversationThread newThread = threadService.createNewThread(user);
-        
+
+        // Reset the context-usage button to 0% immediately
+        PersistentKeyboardService keyboardService = persistentKeyboardServiceProvider.getIfAvailable();
+        if (keyboardService != null) {
+            keyboardService.sendKeyboard(command.telegramId(), user.getId(), newThread);
+        }
+
         // Build message depending on whether there was a previous conversation
         String responseMessage = "✅ New conversation started!\n\n" +
             "Thread ID: `" + newThread.getThreadKey().substring(0, 8) + "...`";
         if (hadPreviousThread) {
             responseMessage += "\n\nPrevious conversation history was saved.";
         }
-        
+
         return responseMessage;
     }
     

@@ -99,7 +99,7 @@ Evaluated in order — first match wins:
 1. `getOrCreateUser()` + `getOrCreateSession()`
 2. `saveUserMessage()` → creates/finds `ConversationThread`, returns `OpenDaimonMessage`
 3. Builds metadata: `threadKey`, `assistantRoleId`, `userId`, `role`, `languageCode`; no `preferredModelId`
-4. `AICommandFactoryRegistry.createCommand()` → `ConversationHistoryAICommandFactory` → `ChatAICommand(capabilities={CHAT})`
+4. `AICommandFactoryRegistry.createCommand()` → `DefaultAICommandFactory` → `ChatAICommand(capabilities={CHAT})`
 5. `SpringAIGateway` → AUTO model selection → `streamChat()` → `SpringAIStreamResponse`
 6. `AIUtils.processStreamingResponseByParagraphs()` → sends paragraphs as they arrive
 7. `saveAssistantMessage()` with processing time and model name

@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.context.annotation.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -135,19 +136,14 @@ public class SpringAIAutoConfig {
             @Qualifier("openAiChatClient") ChatClient openAiChatClient,
             WebTools webTools,
             ChatMemory chatMemory,
-            SpringAIModelType springAIModelType,
-            CoreCommonProperties coreCommonProperties
+            SpringAIModelType springAIModelType
     ) {
-        boolean manualConversationContextEnabled = Boolean.TRUE.equals(
-                coreCommonProperties.getManualConversationHistory().getEnabled()
-        );
         return new SpringAIPromptFactory(
                 ollamaChatClient,
                 openAiChatClient,
                 webTools,
                 chatMemory,
-                springAIModelType,
-                !manualConversationContextEnabled
+                springAIModelType
         );
     }
 
@@ -281,6 +277,27 @@ public class SpringAIAutoConfig {
     }
 
 
+    /**
+     * RestClientCustomizer for Ollama RestClient timeouts.
+     * Spring AI Ollama uses RestClient internally; socket read timeout must be set explicitly.
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "aiRestClientTimeoutCustomizer")
+    public RestClientCustomizer aiRestClientTimeoutCustomizer(SpringAIProperties properties) {
+        return builder -> {
+            int timeoutSeconds = properties.getTimeouts() != null && properties.getTimeouts().getResponseTimeoutSeconds() != null
+                    ? properties.getTimeouts().getResponseTimeoutSeconds()
+                    : 600;
+
+            log.info("Configuring AI RestClient read timeout: {} seconds", timeoutSeconds);
+
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setReadTimeout(java.time.Duration.ofSeconds(timeoutSeconds));
+            factory.setConnectTimeout(java.time.Duration.ofSeconds(30));
+            builder.requestFactory(factory);
+        };
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public WebTools webTools(WebClient webClient, SpringAIProperties properties) {
@@ -294,49 +311,31 @@ public class SpringAIAutoConfig {
     @Primary
     @Bean
     @DependsOn("springAiFlyway")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "false")
     public ChatMemory chatMemoryOnPostgresDb(
             ChatMemoryRepository chatMemoryRepository,
             ConversationThreadRepository conversationThreadRepository,
             OpenDaimonMessageRepository messageRepository,
             SummarizationService summarizationService,
             org.springframework.context.ApplicationEventPublisher eventPublisher,
-            SpringAIProperties springAIProperties,
             CoreCommonProperties coreCommonProperties) {
 
-        double summaryTriggerThreshold = coreCommonProperties.getSummarization().getSummaryTriggerThreshold();
         return new SummarizingChatMemory(
                 chatMemoryRepository,
                 conversationThreadRepository,
                 messageRepository,
                 summarizationService,
                 eventPublisher,
-                springAIProperties.getHistoryWindowSize(),
-                summaryTriggerThreshold
+                coreCommonProperties.getSummarization().getMessageWindowSize()
         );
     }
 
     @Bean("ollamaChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "false")
     public ChatClient ollamaChatClientWithHistory(OllamaChatModel ollamaChatModel) {
         return ChatClient.builder(ollamaChatModel).build();
     }
 
     @Bean("openAiChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "false")
     public ChatClient openAiChatClientWithHistory(OpenAiChatModel openAiChatModel) {
-        return ChatClient.builder(openAiChatModel).build();
-    }
-
-    @Bean("ollamaChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "true")
-    public ChatClient ollamaChatClient(OllamaChatModel ollamaChatModel) {
-        return ChatClient.builder(ollamaChatModel).build();
-    }
-
-    @Bean("openAiChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "true")
-    public ChatClient openAiChatClient(OpenAiChatModel openAiChatModel) {
         return ChatClient.builder(openAiChatModel).build();
     }
 

@@ -33,16 +33,7 @@ open-daimon:
     max-user-message-tokens: 4000
     max-total-prompt-tokens: 32000
     summarization:
-      max-context-tokens: 1000
-      summary-trigger-threshold: 0.7
-      keep-recent-messages: 1
       prompt: "You are an assistant. Create a summary in JSON. Conversation:"
-    manual-conversation-history:
-      enabled: false
-      max-response-tokens: 500
-      default-window-size: 1
-      include-system-prompt: true
-      token-estimation-chars-per-token: 4
   ai:
     spring-ai:
       enabled: true

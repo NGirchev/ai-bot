@@ -27,7 +27,7 @@ open-daimon:
       enabled: ${ADMIN_ENABLED:true}
       telegram-id: ${ADMIN_TELEGRAM_ID:}
       rest-email: ${ADMIN_REST_EMAIL:}
-    assistant-role: "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Always respond in {language_code} language."
+    assistant-role: role.content.default
     # Hard limit for entire prompt to API (system + history + current). When exceeded — trim/reject and return error.
     max-total-prompt-tokens: 32000
     # Max tokens per user message; when exceeded can reject with hint to shorten.
@@ -38,9 +38,7 @@ open-daimon:
     max-reasoning-tokens: 1500
     # Summarization of long conversations (manual and Spring AI modes).
     summarization:
-      max-context-tokens: 8000
-      summary-trigger-threshold: 0.7
-      keep-recent-messages: 20
+      message-window-size: 10
       # Prompt for AI to produce summary + memory_bullets (JSON). Placeholder not used; conversation is sent as separate user message.
       prompt: |
         You are an assistant that creates brief summaries of conversations.
@@ -50,13 +48,6 @@ open-daimon:
         Reply in strict JSON only (no ```json or markdown):
         {"summary": "short summary of the conversation", "memory_bullets": ["fact 1", "fact 2", ...]}
         Conversation:
-    # Common-managed history (manual context). false = use Spring AI ChatMemory.
-    manual-conversation-history:
-      enabled: false
-      max-response-tokens: 4000
-      default-window-size: 20
-      include-system-prompt: true
-      token-estimation-chars-per-token: 4
   telegram:
     enabled: true
     username: ${TELEGRAM_USERNAME}
@@ -170,7 +161,6 @@ open-daimon:
           url: "https://google.serper.dev/search"
           key: ${SERPER_KEY}
       mock: false
-      history-window-size: 20
       timeouts:
         response-timeout-seconds: 600  # 10 minutes for HTTP requests to AI providers
         stream-timeout-seconds: 600   # 10 minutes for streaming
@@ -197,7 +187,6 @@ open-daimon:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - EMBEDDING
               - VISION
             provider-type: OPENAI
@@ -214,6 +203,7 @@ open-daimon:
               - SUMMARIZATION
             provider-type: OLLAMA
             priority: 1
+            max-reasoning-tokens: 0  # Ollama does not support reasoning parameter
             # allowed-roles not set — accessible to all roles
           - name: "qwen3-embedding:8b"
             capabilities:
@@ -228,7 +218,6 @@ open-daimon:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - EMBEDDING
               - VISION
             provider-type: OPENAI
@@ -241,7 +230,6 @@ open-daimon:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - STRUCTURED_OUTPUT
               - VISION
               - FREE
@@ -255,7 +243,6 @@ open-daimon:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - STRUCTURED_OUTPUT
               - VISION
               - FREE
@@ -269,7 +256,6 @@ open-daimon:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - STRUCTURED_OUTPUT
               - VISION
               - FREE

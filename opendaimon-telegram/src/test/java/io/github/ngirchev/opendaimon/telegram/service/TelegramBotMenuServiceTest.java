@@ -52,8 +52,8 @@ class TelegramBotMenuServiceTest {
         service.setupBotMenu();
 
         ArgumentCaptor<List<BotCommand>> commandsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(telegramBot, atLeast(1)).setMyCommands(commandsCaptor.capture(), eq("ru"));
-        verify(telegramBot, atLeast(1)).setMyCommands(commandsCaptor.capture(), eq("en"));
+        verify(telegramBot, atLeast(1)).setMyCommands(commandsCaptor.capture(), eq((String) "ru"));
+        verify(telegramBot, atLeast(1)).setMyCommands(commandsCaptor.capture(), eq((String) "en"));
 
         List<BotCommand> commands = commandsCaptor.getAllValues().get(0);
         assertTrue(commands.stream().anyMatch(c -> "/start".equals(c.getCommand()) && "Start".equals(c.getDescription())));
@@ -68,7 +68,7 @@ class TelegramBotMenuServiceTest {
         service.setupBotMenu();
 
         ArgumentCaptor<List<BotCommand>> captor = ArgumentCaptor.forClass(List.class);
-        verify(telegramBot, atLeast(1)).setMyCommands(captor.capture(), any());
+        verify(telegramBot, atLeast(1)).setMyCommands(captor.capture(), any(String.class));
         List<BotCommand> commands = captor.getValue();
         BotCommand help = commands.stream().filter(c -> "/help".equals(c.getCommand())).findFirst().orElse(null);
         assertNotNull(help);
@@ -83,7 +83,7 @@ class TelegramBotMenuServiceTest {
         doThrow(new TelegramApiException("API error")).when(telegramBot).setMyCommands(anyList(), any(String.class));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.setupBotMenu());
-        assertTrue(ex.getCause() instanceof TelegramApiException, "Cause must be TelegramApiException");
+        assertInstanceOf(TelegramApiException.class, ex.getCause(), "Cause must be TelegramApiException");
         assertNotNull(ex.getMessage());
         assertTrue(ex.getMessage().contains("bot menu"), "Message should mention bot menu");
     }
@@ -95,6 +95,6 @@ class TelegramBotMenuServiceTest {
 
         service.setupBotMenu();
 
-        verify(telegramBot, never()).setMyCommands(anyList(), any());
+        verify(telegramBot, never()).setMyCommands(anyList(), any(String.class));
     }
 }

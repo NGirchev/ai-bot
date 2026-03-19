@@ -12,6 +12,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.content.Media;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.ollama.api.ThinkOption;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
 import io.github.ngirchev.opendaimon.ai.springai.tool.WebTools;
@@ -37,11 +38,6 @@ public class SpringAIPromptFactory {
     private final WebTools webTools;
     private final ChatMemory chatMemory;
     private final SpringAIModelType springAIModelType;
-    /**
-     * true -> Spring AI ChatMemory (MessageChatMemoryAdvisor) is the source of history.
-     * false -> history is provided explicitly via messages (manual context builder).
-     */
-    private final boolean useChatMemoryAdvisor;
 
     public ChatClient.ChatClientRequestSpec preparePrompt(
             SpringAIModelConfig modelConfig,
@@ -57,7 +53,7 @@ public class SpringAIPromptFactory {
         var promptBuilder = chatClient.prompt();
         promptBuilder.options(buildChatOptions(modelConfig, resolvedModelName, body, chatOptions));
 
-        if (useChatMemoryAdvisor && conversationId != null) {
+        if (conversationId != null) {
             promptBuilder
                     .advisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                     .advisors(a -> a.param(CONVERSATION_ID, conversationId))
@@ -71,7 +67,7 @@ public class SpringAIPromptFactory {
     }
 
     private void addSystemMessagesIfPresent(ChatClient.ChatClientRequestSpec promptBuilder, List<Message> messages) {
-        if (messages == null || messages.isEmpty() || !useChatMemoryAdvisor) return;
+        if (messages == null || messages.isEmpty()) return;
         for (Message message : messages) {
             if (message instanceof SystemMessage systemMessage) {
                 promptBuilder.system(systemMessage.getText());
@@ -90,11 +86,7 @@ public class SpringAIPromptFactory {
 
     private void addUserOrAllMessages(ChatClient.ChatClientRequestSpec promptBuilder, List<Message> messages) {
         if (messages == null || messages.isEmpty()) return;
-        if (useChatMemoryAdvisor) {
-            addLastUserMessageToPrompt(promptBuilder, messages);
-        } else {
-            promptBuilder.messages(messages);
-        }
+        addLastUserMessageToPrompt(promptBuilder, messages);
     }
 
     private void addLastUserMessageToPrompt(ChatClient.ChatClientRequestSpec promptBuilder, List<Message> messages) {
@@ -145,7 +137,7 @@ public class SpringAIPromptFactory {
             if (extraBody == null) {
                 extraBody = new HashMap<>();
             }
-            Object reasoning = safeOverrides.get("reasoning");
+            Object reasoning = resolveReasoning(modelConfig, safeOverrides);
             if (reasoning != null) {
                 extraBody.put("reasoning", reasoning);
             }
@@ -160,15 +152,21 @@ public class SpringAIPromptFactory {
             return optionsBuilder.build();
         }
 
-        // Ollama: do not pass think — some versions/models return 400 for this param. Enable via options in model config if needed.
-        return OllamaChatOptions.builder()
+        // Ollama: do not pass think by default — some versions/models return 400 for this param.
+        // Per-model opt-in/opt-out via SpringAIModelConfig.think (e.g. think: false for Qwen3 to avoid empty responses).
+        OllamaChatOptions.Builder ollamaBuilder = OllamaChatOptions.builder()
                 .model(modelName)
                 .frequencyPenalty(getDouble(safeOverrides, FREQUENCY_PENALTY))
                 .temperature(temperature)
                 .numPredict(maxTokens)
                 .topK(getInteger(safeOverrides, TOP_K))
-                .topP(getDouble(safeOverrides, TOP_P))
-                .build();
+                .topP(getDouble(safeOverrides, TOP_P));
+        if (modelConfig != null && modelConfig.getThink() != null) {
+            ollamaBuilder.thinkOption(modelConfig.getThink()
+                    ? ThinkOption.ThinkBoolean.ENABLED
+                    : ThinkOption.ThinkBoolean.DISABLED);
+        }
+        return ollamaBuilder.build();
     }
 
     private Map<String, Object> extractExtraBody(Map<String, Object> body) {
@@ -258,6 +256,22 @@ public class SpringAIPromptFactory {
                 .filter(m -> m.getProviderType() != null)
                 .map(m -> m.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI ? openAiChatClient : ollamaChatClient)
                 .orElse(openAiChatClient);
+    }
+
+    /**
+     * Resolves reasoning token budget: per-model config overrides global default from body.
+     * Returns null if reasoning should not be sent (model override = 0 or no value anywhere).
+     */
+    private Object resolveReasoning(SpringAIModelConfig modelConfig, Map<String, Object> safeOverrides) {
+        if (modelConfig != null && modelConfig.getMaxReasoningTokens() != null) {
+            int perModel = modelConfig.getMaxReasoningTokens();
+            if (perModel <= 0) {
+                return null; // explicitly disabled for this model
+            }
+            return Map.of("max_tokens", perModel);
+        }
+        // fallback to global default from command body
+        return safeOverrides.get("reasoning");
     }
 
     private boolean isOpenAIProvider(SpringAIModelConfig modelConfig, String modelName) {

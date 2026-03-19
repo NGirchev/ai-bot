@@ -22,8 +22,10 @@ class OpenRouterModelCapabilitiesMapperTest {
     void fromOpenRouterModel_emptyNodeReturnsBaseCapabilities() throws Exception {
         JsonNode node = objectMapper.readTree("{}");
         Set<ModelCapabilities> caps = OpenRouterModelCapabilitiesMapper.fromOpenRouterModel(node);
+        // CHAT is always added for OpenRouter models
         assertTrue(caps.contains(ModelCapabilities.CHAT));
-        assertTrue(caps.contains(ModelCapabilities.SUMMARIZATION));
+        // SUMMARIZATION is NOT auto-assigned from OpenRouter — only from yml config
+        assertFalse(caps.contains(ModelCapabilities.SUMMARIZATION));
     }
 
     @Test

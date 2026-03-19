@@ -24,6 +24,8 @@ open-daimon:
               - WEB
             provider-type: OLLAMA
             priority: 1
+            max-reasoning-tokens: 0  # Ollama does not support reasoning parameter
+            think: false  # Disable Qwen3 thinking mode — prevents token budget exhaustion that causes empty responses
           - name: "gemma3:1b"
             capabilities:
               - EMBEDDING

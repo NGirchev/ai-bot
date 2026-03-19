@@ -316,7 +316,7 @@ class MessageTelegramCommandHandlerTest {
 
         verify(telegramMessageService).saveAssistantMessage(eq(telegramUser), eq("Hi there!"), anyString(), eq("You are helpful."), anyInt(), any());
         verify(messageService).updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Hi there!"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Hi there!"), any(), any());
     }
 
     @Test
@@ -406,7 +406,7 @@ class MessageTelegramCommandHandlerTest {
         when(aiGateway.generateResponse(aiCommand)).thenReturn(aiResponse);
 
         when(telegramMessageService.saveAssistantMessage(any(), any(), anyString(), any(), anyInt(), any())).thenReturn(new OpenDaimonMessage());
-        doThrow(new org.telegram.telegrambots.meta.exceptions.TelegramApiException("send failed")).when(telegramBot).sendMessage(anyLong(), anyString(), any());
+        doThrow(new org.telegram.telegrambots.meta.exceptions.TelegramApiException("send failed")).when(telegramBot).sendMessage(anyLong(), anyString(), any(), any());
 
         TelegramCommand command = new TelegramCommand(200L, CHAT_ID, new TelegramCommandType(TelegramCommand.MESSAGE), update, "Hello");
         command.languageCode("en");
@@ -520,7 +520,7 @@ class MessageTelegramCommandHandlerTest {
         verify(aiGateway, times(2)).generateResponse(aiCommand);
         verify(telegramMessageService).saveAssistantMessage(eq(telegramUser), eq("Retry success"), anyString(), eq("Role"), anyInt(), any());
         verify(messageService).updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Retry success"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Retry success"), any(), any());
         verify(telegramBot, never()).sendErrorMessage(anyLong(), anyString(), any());
     }
 
@@ -571,7 +571,7 @@ class MessageTelegramCommandHandlerTest {
 
         verify(telegramMessageService).saveAssistantMessage(eq(telegramUser), eq("Streamed reply"), anyString(), eq("Role"), anyInt(), any());
         verify(messageService).updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Streamed reply"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Streamed reply"), any(), any());
     }
 
     private static ChatResponse createChatResponse(String text) {

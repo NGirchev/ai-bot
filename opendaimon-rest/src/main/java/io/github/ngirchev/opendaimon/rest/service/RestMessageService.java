@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.model.*;
+import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
 import io.github.ngirchev.opendaimon.common.service.OpenDaimonMessageService;
 import io.github.ngirchev.opendaimon.rest.model.RestUser;
 
@@ -22,6 +23,7 @@ public class RestMessageService {
     private final OpenDaimonMessageService messageService;
     private final RestUserService restUserService;
     private final CoreCommonProperties coreCommonProperties;
+    private final MessageLocalizationService messageLocalizationService;
     
     /**
      * Saves USER message from REST user with conversation thread.
@@ -40,7 +42,7 @@ public class RestMessageService {
         // Get or create assistant role for user via RestUserService
         String roleContent = assistantRoleContent != null 
                 ? assistantRoleContent 
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), null);
         AssistantRole assistantRole = restUserService.getOrCreateAssistantRole(user, roleContent);
         
         // Prepare REST-specific metadata

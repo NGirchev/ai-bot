@@ -26,6 +26,7 @@ public class OpenDaimonMessageService {
     private final ConversationThreadService conversationThreadService;
     private final AssistantRoleService assistantRoleService;
     private final CoreCommonProperties coreCommonProperties;
+    private final MessageLocalizationService messageLocalizationService;
     private final TokenCounter tokenCounter;
     /** Self-reference for transactional proxy (avoids bypassing @Transactional on internal calls). */
     private final ObjectProvider<OpenDaimonMessageService> selfProvider;
@@ -47,7 +48,7 @@ public class OpenDaimonMessageService {
         // Get or create assistant role for user
         String roleContent = assistantRoleContent != null
                 ? assistantRoleContent
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), null);
         AssistantRole assistantRole = assistantRoleService.getOrCreateDefaultRole(user, roleContent);
 
         return selfProvider.getObject().saveUserMessage(user, content, requestType, assistantRole, metadata, null);
@@ -131,7 +132,7 @@ public class OpenDaimonMessageService {
         // Get or create assistant role for user
         String roleContent = assistantRoleContent != null
                 ? assistantRoleContent
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), null);
         AssistantRole assistantRole = assistantRoleService.getOrCreateDefaultRole(user, roleContent);
 
         return selfProvider.getObject().saveAssistantMessage(user, content, serviceName, assistantRole, processingTimeMs, responseDataMap);
@@ -189,7 +190,7 @@ public class OpenDaimonMessageService {
         // Get or create assistant role for user
         String roleContent = assistantRoleContent != null
                 ? assistantRoleContent
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), null);
         AssistantRole assistantRole = assistantRoleService.getOrCreateDefaultRole(user, roleContent);
 
         return selfProvider.getObject().saveAssistantErrorMessage(user, errorMessage, serviceName, assistantRole, errorData);

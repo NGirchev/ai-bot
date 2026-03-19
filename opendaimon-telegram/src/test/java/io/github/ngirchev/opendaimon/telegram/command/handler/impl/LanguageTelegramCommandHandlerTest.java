@@ -130,7 +130,7 @@ class LanguageTelegramCommandHandlerTest {
 
         handler.handleInner(command);
 
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Current language"), isNull());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Current language"), isNull(), isNull());
         verify(telegramBot).execute(any(org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
     }
 
@@ -153,7 +153,7 @@ class LanguageTelegramCommandHandlerTest {
         handler.handleInner(command);
 
         verify(telegramUserService).updateLanguageCode(eq(from.getId()), eq("ru"));
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Language updated"), isNull());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Language updated"), isNull(), isNull());
     }
 
     @Test

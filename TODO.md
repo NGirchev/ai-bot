@@ -18,7 +18,6 @@
 - [x] Improve message grouping
 - [x] Improve format conversion for Spring AI to pass temperature
 - [ ] Add request pricing and budget calculation
-- [ ] ConversationHistoryAICommandFactory: add logic like Default for admin and VIP
 - [ ] Rest whitelist
 - [ ] Reply options as buttons
 - [ ] Telegram RAG Module

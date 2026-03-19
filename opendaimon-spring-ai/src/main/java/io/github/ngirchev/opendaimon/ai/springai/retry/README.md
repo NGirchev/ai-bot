@@ -60,7 +60,7 @@ Retry and OpenRouter model rotation are implemented via the AOP aspect `OpenRout
 
 ## Candidates and why retry may not work
 
-- Candidates are determined by `command.modelCapabilities()` from the command factory. The project uses **DefaultAICommandFactory** (not ConversationHistoryAICommandFactory).
+- Candidates are determined by `command.modelCapabilities()` from the command factory (`DefaultAICommandFactory`).
 - **ADMIN:** capabilities = `{AUTO}`. In the registry only `openrouter/auto` has AUTO → one candidate → on stream error retry is not possible (no "next" model).
 - **REGULAR:** `{CHAT}`. Eligible: openrouter/auto, gemma3:1b, free models with CHAT → several candidates, retry possible.
 - **VIP:** `{CHAT, TOOL_CALLING, WEB}` — several models may match, retry possible.

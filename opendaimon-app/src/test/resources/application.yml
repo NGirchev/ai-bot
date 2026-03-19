@@ -6,7 +6,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-# Prod-like limits: history and summarization (summarization + manual-conversation-history from main application.yml).
+# Prod-like limits: history and summarization (from main application.yml).
 # Prompt = system + history + current ≤ max-total-prompt-tokens; response = reasoning + text ≤ max-output-tokens.
 open-daimon:
   telegram:

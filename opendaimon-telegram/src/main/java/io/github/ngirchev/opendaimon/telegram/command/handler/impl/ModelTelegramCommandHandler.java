@@ -8,6 +8,8 @@ import io.github.ngirchev.opendaimon.common.ai.command.ModelListAICommand;
 import io.github.ngirchev.opendaimon.common.ai.model.ModelInfo;
 import io.github.ngirchev.opendaimon.common.ai.response.ModelListAIResponse;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
+import io.github.ngirchev.opendaimon.common.model.ConversationThread;
+import io.github.ngirchev.opendaimon.common.service.ConversationThreadService;
 import io.github.ngirchev.opendaimon.common.service.AIGateway;
 import io.github.ngirchev.opendaimon.common.service.AIGatewayRegistry;
 import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
@@ -52,6 +54,7 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
     private final AIGatewayRegistry aiGatewayRegistry;
     private final IUserPriorityService userPriorityService;
     private final PersistentKeyboardService persistentKeyboardService;
+    private final ConversationThreadService conversationThreadService;
 
     public ModelTelegramCommandHandler(ObjectProvider<TelegramBot> telegramBotProvider,
                                        TypingIndicatorService typingIndicatorService,
@@ -60,13 +63,15 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
                                        UserModelPreferenceService userModelPreferenceService,
                                        AIGatewayRegistry aiGatewayRegistry,
                                        IUserPriorityService userPriorityService,
-                                       PersistentKeyboardService persistentKeyboardService) {
+                                       PersistentKeyboardService persistentKeyboardService,
+                                       ConversationThreadService conversationThreadService) {
         super(telegramBotProvider, typingIndicatorService, messageLocalizationService);
         this.telegramUserService = telegramUserService;
         this.userModelPreferenceService = userModelPreferenceService;
         this.aiGatewayRegistry = aiGatewayRegistry;
         this.userPriorityService = userPriorityService;
         this.persistentKeyboardService = persistentKeyboardService;
+        this.conversationThreadService = conversationThreadService;
     }
 
     @Override
@@ -100,9 +105,8 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
             throw new TelegramCommandHandlerException(command.telegramId(), "Message is required for model command");
         }
         TelegramUser user = telegramUserService.getOrCreateUser(message.getFrom());
-        userModelPreferenceService.getPreferredModel(user.getId())
-                .map(m -> TelegramCommand.MODEL_KEYBOARD_PREFIX + m);
-        persistentKeyboardService.sendKeyboard(command.telegramId(), user.getId(), null);
+        ConversationThread thread = conversationThreadService.findCurrentThread(user).orElse(null);
+        persistentKeyboardService.sendKeyboard(command.telegramId(), user.getId(), thread);
         sendModelMenu(command.telegramId(), user);
         return null;
     }
@@ -197,7 +201,8 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
             userModelPreferenceService.setPreferredModel(userId, modelName);
             ackCallback(cq.getId(), "✅ " + modelName);
         }
-        persistentKeyboardService.sendKeyboard(command.telegramId(), userId, null);
+        ConversationThread thread = conversationThreadService.findCurrentThread(user).orElse(null);
+        persistentKeyboardService.sendKeyboard(command.telegramId(), userId, thread);
     }
 
     private String resolveModelName(String callbackData, TelegramUser user) {

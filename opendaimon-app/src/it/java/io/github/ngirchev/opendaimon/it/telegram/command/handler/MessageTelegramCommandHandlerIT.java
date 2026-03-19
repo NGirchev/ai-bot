@@ -97,11 +97,6 @@ import org.mockito.ArgumentCaptor;
         "open-daimon.common.summarization.summary-trigger-threshold=0.7",
         "open-daimon.common.summarization.keep-recent-messages=20",
         "open-daimon.common.summarization.prompt=You are an assistant. Create a summary in JSON. Conversation:",
-        "open-daimon.common.manual-conversation-history.enabled=false",
-        "open-daimon.common.manual-conversation-history.max-response-tokens=4000",
-        "open-daimon.common.manual-conversation-history.default-window-size=20",
-        "open-daimon.common.manual-conversation-history.include-system-prompt=true",
-        "open-daimon.common.manual-conversation-history.token-estimation-chars-per-token=4",
         "open-daimon.ai.openrouter.enabled=false",
         "open-daimon.ai.deepseek.enabled=false",
         "open-daimon.ai.spring-ai.enabled=false",
@@ -234,12 +229,14 @@ class MessageTelegramCommandHandlerIT {
                 OpenDaimonMessageService messageService,
                 TelegramUserService telegramUserService,
                 CoreCommonProperties coreCommonProperties,
+                MessageLocalizationService messageLocalizationService,
                 ObjectProvider<StorageProperties> storagePropertiesProvider,
                 ObjectProvider<TelegramMessageService> telegramMessageServiceSelfProvider) {
             return new TelegramMessageService(
                     messageService,
                     telegramUserService,
                     coreCommonProperties,
+                    messageLocalizationService,
                     storagePropertiesProvider,
                     telegramMessageServiceSelfProvider
             );
@@ -258,8 +255,9 @@ class MessageTelegramCommandHandlerIT {
         }
 
         @Bean
-        public UserModelPreferenceService userModelPreferenceService() {
-            return new UserModelPreferenceService();
+        public UserModelPreferenceService userModelPreferenceService(
+                TelegramUserRepository telegramUserRepository) {
+            return new UserModelPreferenceService(telegramUserRepository);
         }
 
         @Bean
@@ -393,7 +391,7 @@ class MessageTelegramCommandHandlerIT {
         // Verify message was sent
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Integer> replyToMessageIdCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(mockTelegramBot, times(1)).sendMessage(eq(command.telegramId()), messageCaptor.capture(), replyToMessageIdCaptor.capture());
+        verify(mockTelegramBot, times(1)).sendMessage(eq(command.telegramId()), messageCaptor.capture(), replyToMessageIdCaptor.capture(), any());
         assertNotNull(messageCaptor.getValue(), "Message must be sent");
         assertFalse(messageCaptor.getValue().isEmpty(), "Message must not be empty");
     }

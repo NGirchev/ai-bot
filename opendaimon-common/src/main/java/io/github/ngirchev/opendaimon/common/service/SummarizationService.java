@@ -4,19 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.model.ConversationThread;
 import io.github.ngirchev.opendaimon.common.model.OpenDaimonMessage;
 import io.github.ngirchev.opendaimon.common.model.MessageRole;
-import io.github.ngirchev.opendaimon.common.repository.OpenDaimonMessageRepository;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.*;
@@ -34,10 +30,8 @@ import static io.github.ngirchev.opendaimon.common.service.AIUtils.retrieveMessa
 public class SummarizationService {
 
     private static final String NO_MESSAGES_TO_SUMMARIZE_FOR_THREAD = "No messages to summarize for thread {}";
-    private static final String NO_MESSAGES_AFTER_FILTERING = "No messages to summarize after filtering for thread {}";
     private static final String MEMORY_BULLETS = "memory_bullets";
 
-    private final OpenDaimonMessageRepository messageRepository;
     private final ConversationThreadService threadService;
     private final AIGatewayRegistry aiGatewayRegistry;
     private final CoreCommonProperties coreCommonProperties;
@@ -48,77 +42,6 @@ public class SummarizationService {
 
     /** Max retries when model response is not valid JSON. */
     private static final int SUMMARIZATION_PARSE_MAX_RETRIES = 3;
-
-    /**
-     * Whether to trigger summarization based on token usage.
-     * Used for non-Spring AI providers (ConversationHistoryAICommandFactory).
-     */
-    public boolean shouldTriggerSummarization(ConversationThread thread) {
-        Long totalTokens = thread.getTotalTokens();
-        if (totalTokens == null || totalTokens == 0) {
-            return false;
-        }
-
-        CoreCommonProperties.SummarizationProperties summarization = coreCommonProperties.getSummarization();
-        double usageRatio = (double) totalTokens / summarization.getMaxContextTokens();
-        boolean shouldTrigger = usageRatio >= summarization.getSummaryTriggerThreshold();
-
-        if (shouldTrigger) {
-            log.debug("Thread {} reached summarization threshold by tokens: {} tokens / {} max = {} (threshold: {})",
-                    thread.getThreadKey(), totalTokens, summarization.getMaxContextTokens(),
-                    usageRatio, summarization.getSummaryTriggerThreshold());
-        }
-
-        return shouldTrigger;
-    }
-
-    /**
-     * Creates or updates the summary for the thread.
-     * Called asynchronously when the thread exceeds token budget.
-     */
-    @Async("summarizationTaskExecutor")
-    @Transactional
-    public CompletableFuture<Void> summarizeThreadAsync(ConversationThread thread) {
-        String threadKey = thread.getThreadKey();
-
-        // Sync by threadKey to prevent concurrent summarization
-        if (!ongoingSummarizations.add(threadKey)) {
-            log.debug("Summarization already in progress for thread {}, skipping", threadKey);
-            return CompletableFuture.completedFuture(null);
-        }
-
-        try {
-            log.info("Starting summarization for thread {}", threadKey);
-
-            // 1. Load all messages from thread
-            List<OpenDaimonMessage> messages = messageRepository
-                    .findByThreadOrderBySequenceNumberAsc(thread);
-
-            if (messages.isEmpty()) {
-                log.warn(NO_MESSAGES_TO_SUMMARIZE_FOR_THREAD, threadKey);
-                return CompletableFuture.completedFuture(null);
-            }
-
-            // Async path: load all messages, filter by keepRecentMessages
-            int keepRecentMessages = coreCommonProperties.getSummarization().getKeepRecentMessages();
-            List<OpenDaimonMessage> messagesToSummarize = filterMessagesForSummarization(messages, keepRecentMessages, thread.getThreadKey());
-
-            if (messagesToSummarize.isEmpty()) {
-                log.info(NO_MESSAGES_AFTER_FILTERING, threadKey);
-                return CompletableFuture.completedFuture(null);
-            }
-
-            performSummarization(thread, messagesToSummarize);
-
-            log.info("Successfully summarized messages for thread {}", threadKey);
-        } catch (Exception e) {
-            log.error("Error during summarization for thread {}", threadKey, e);
-        } finally {
-            ongoingSummarizations.remove(threadKey);
-        }
-
-        return CompletableFuture.completedFuture(null);
-    }
 
     /**
      * Synchronous summarization for a thread.
@@ -153,45 +76,6 @@ public class SummarizationService {
         } finally {
             ongoingSummarizations.remove(threadKey);
         }
-    }
-
-    /**
-     * Filters messages for summarization, leaving the last N messages untouched.
-     *
-     * @param messages all messages
-     * @param keepRecentMessages number of recent messages to keep
-     * @param threadKey thread key for logging
-     * @return filtered list of messages to summarize (empty if nothing to summarize)
-     */
-    private List<OpenDaimonMessage> filterMessagesForSummarization(List<OpenDaimonMessage> messages, int keepRecentMessages, String threadKey) {
-        // Too few messages (<= 2): do not summarize
-        if (messages.size() <= 2) {
-            log.info("Not enough messages to summarize for thread {} (only {} messages, need at least 3)",
-                    threadKey, messages.size());
-            return List.of();
-        }
-        
-        int actualKeepMessages;
-        if (messages.size() <= keepRecentMessages) {
-            actualKeepMessages = messages.size();
-        } else {
-            actualKeepMessages = keepRecentMessages;
-        }
-
-        // How many messages to summarize
-        int messagesToSummarizeCount = messages.size() - actualKeepMessages;
-
-        if (messagesToSummarizeCount <= 0) {
-            log.info("Not enough messages to summarize for thread {} (only {} messages, keeping {} messages)",
-                    threadKey, messages.size(), actualKeepMessages);
-            return List.of();
-        }
-        
-        List<OpenDaimonMessage> messagesToSummarize = messages.subList(0, messagesToSummarizeCount);
-        log.debug("Filtered messages: summarizing {} messages, keeping {} messages for thread {}",
-                messagesToSummarizeCount, actualKeepMessages, threadKey);
-        
-        return messagesToSummarize;
     }
 
     /**
@@ -238,7 +122,7 @@ public class SummarizationService {
     private SummaryResult callAiAndParseSummaryResult(String dialogTextStr) {
         String summarizationPrompt = coreCommonProperties.getSummarization().getPrompt();
         ChatAICommand summaryCommand = new ChatAICommand(
-                Set.of(SUMMARIZATION), 0.3, 2000, summarizationPrompt, dialogTextStr);
+                Set.of(SUMMARIZATION), 0.3, coreCommonProperties.getSummarization().getMaxOutputTokens(), summarizationPrompt, dialogTextStr);
         AIGateway aiGateway = aiGatewayRegistry.getSupportedAiGateways(summaryCommand).stream()
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("No AI gateway for summarization"));
