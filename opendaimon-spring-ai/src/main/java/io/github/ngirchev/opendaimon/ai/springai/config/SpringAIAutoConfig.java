@@ -325,7 +325,8 @@ public class SpringAIAutoConfig {
                 messageRepository,
                 summarizationService,
                 eventPublisher,
-                coreCommonProperties.getSummarization().getMessageWindowSize()
+                coreCommonProperties.getSummarization().getMessageWindowSize(),
+                coreCommonProperties.getSummarization().getMaxWindowTokens()
         );
     }
 

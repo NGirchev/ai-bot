@@ -41,6 +41,7 @@ public class SummarizingChatMemory implements ChatMemory {
     private final SummarizationService summarizationService;
     private final ApplicationEventPublisher eventPublisher;
     private final Integer maxMessages; // Max messages from MessageWindowChatMemory
+    private final Integer maxWindowTokens; // Max tokens trigger for summarization
 
     public SummarizingChatMemory(
             ChatMemoryRepository chatMemoryRepository,
@@ -48,17 +49,19 @@ public class SummarizingChatMemory implements ChatMemory {
             OpenDaimonMessageRepository messageRepository,
             SummarizationService summarizationService,
             ApplicationEventPublisher eventPublisher,
-            Integer maxMessages) {
+            Integer maxMessages,
+            Integer maxWindowTokens) {
         this.conversationThreadRepository = conversationThreadRepository;
         this.messageRepository = messageRepository;
         this.summarizationService = summarizationService;
         this.eventPublisher = eventPublisher;
         this.maxMessages = maxMessages;
+        this.maxWindowTokens = maxWindowTokens;
         this.delegate = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
                 .maxMessages(maxMessages)
                 .build();
-        log.info("SummarizingChatMemory initialized: maxMessages={}", maxMessages);
+        log.info("SummarizingChatMemory initialized: maxMessages={}, maxWindowTokens={}", maxMessages, maxWindowTokens);
     }
 
     @Override
@@ -66,25 +69,33 @@ public class SummarizingChatMemory implements ChatMemory {
     public List<Message> get(@NonNull String conversationId) {
         // Get messages from delegate (MessageWindowChatMemory)
         List<Message> messages = delegate.get(conversationId);
-        
-        // Check message count in ChatMemory
+
         int messageCount = messages.size();
-        
-        // If message count reached maxMessages, trigger summarization before Spring AI evicts anything
-        if (messageCount >= maxMessages) {
-            log.info("ChatMemory is full: {} messages (max: {}), triggering summarization for conversationId {}",
-                messageCount, maxMessages, conversationId);
+
+        // Check if summarization should be triggered (by messages or tokens)
+        boolean messageLimitReached = messageCount >= maxMessages;
+        boolean tokenLimitReached = false;
+
+        if (!messageLimitReached && maxWindowTokens != null) {
+            Optional<ConversationThread> threadOpt = conversationThreadRepository.findByThreadKey(conversationId);
+            tokenLimitReached = threadOpt
+                .map(t -> t.getTotalTokens() != null && t.getTotalTokens() >= maxWindowTokens)
+                .orElse(false);
+        }
+
+        // If either limit reached, trigger summarization before Spring AI evicts anything
+        if (messageLimitReached || tokenLimitReached) {
+            log.info("Summarization triggered: messages={}/{}, tokens={}, conversationId={}",
+                messageCount, maxMessages, tokenLimitReached ? "limit reached" : "ok", conversationId);
             eventPublisher.publishEvent(new SummarizationStartedEvent(conversationId));
 
-            // Run summarization and update ChatMemory
             if (performSummarizationAndUpdateChatMemory(conversationId)) {
-                // After successful summarization get updated message list
                 messages = delegate.get(conversationId);
                 log.debug("After summarization, ChatMemory has {} messages for conversationId {}",
                     messages.size(), conversationId);
             }
         }
-        
+
         return messages;
     }
 

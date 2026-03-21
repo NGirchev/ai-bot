@@ -38,7 +38,8 @@ open-daimon:
     max-reasoning-tokens: 1500
     # Summarization of long conversations (manual and Spring AI modes).
     summarization:
-      message-window-size: 10
+      message-window-size: 20  # total messages (user + assistant); 20 = 10 full exchanges
+      max-window-tokens: 1600  # token limit for context window before summarization
       max-output-tokens: 2000
       # Prompt for AI to produce summary + memory_bullets (JSON). Conversation is sent as separate user message.
       prompt: |

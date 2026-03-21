@@ -82,6 +82,15 @@ public class CoreCommonProperties {
         private Integer messageWindowSize;
 
         /**
+         * Max tokens for the context window. When exceeded, triggers summarization.
+         * Used by SummarizingChatMemory as second trigger (first is messageWindowSize).
+         * Also used by UI to show context usage percentage (shows max of message% and token%).
+         */
+        @NotNull(message = "maxWindowTokens is required")
+        @Min(value = 100, message = "maxWindowTokens must be >= 100")
+        private Integer maxWindowTokens;
+
+        /**
          * Max tokens for the summarization response (summary + memory_bullets JSON).
          */
         @NotNull(message = "maxOutputTokens is required")

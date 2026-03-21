@@ -101,11 +101,29 @@ public class PersistentKeyboardService {
         if (thread == null) {
             return TelegramCommand.CONTEXT_KEYBOARD_PREFIX + " —";
         }
+
+        // Calculate message percentage
         int totalMessages = thread.getTotalMessages() != null ? thread.getTotalMessages() : 0;
         int baseline = thread.getMessagesAtLastSummarization() != null ? thread.getMessagesAtLastSummarization() : 0;
-        int messagesSinceSumm = Math.max(0, totalMessages - baseline);
+        int messagesSinceSum = Math.max(0, totalMessages - baseline);
         int windowSize = coreCommonProperties.getSummarization().getMessageWindowSize();
-        int pct = windowSize > 0 ? (int) Math.min(100, messagesSinceSumm * 100 / windowSize) : 0;
+        int messagesPct = windowSize > 0
+            ? (int) Math.min(100, messagesSinceSum * 100 / windowSize)
+            : 0;
+
+        // Calculate token percentage
+        int maxWindowTokens = coreCommonProperties.getSummarization().getMaxWindowTokens();
+        long totalTokens = thread.getTotalTokens() != null ? thread.getTotalTokens() : 0;
+        int tokensPct = maxWindowTokens > 0
+            ? (int) Math.min(100, totalTokens * 100 / maxWindowTokens)
+            : 0;
+
+        // Show the greater percentage (closer to summarization)
+        int pct = Math.max(messagesPct, tokensPct);
+        log.debug("context: tokens={}/{} ({}%), messages={}/{} ({}%), displayed={}%",
+            totalTokens, maxWindowTokens, tokensPct,
+            messagesSinceSum, windowSize, messagesPct,
+            pct);
         return TelegramCommand.CONTEXT_KEYBOARD_PREFIX + " " + pct + "%";
     }
 }

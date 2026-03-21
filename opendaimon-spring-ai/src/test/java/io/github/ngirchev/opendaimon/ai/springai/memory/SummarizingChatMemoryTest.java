@@ -48,6 +48,7 @@ class SummarizingChatMemoryTest {
 
     private static final String CONVERSATION_ID = "conv-1";
     private static final int MAX_MESSAGES = 5;
+    private static final int MAX_WINDOW_TOKENS = 16000;
 
     private SummarizingChatMemory summarizingChatMemory;
 
@@ -69,7 +70,8 @@ class SummarizingChatMemoryTest {
                 messageRepository,
                 summarizationService,
                 eventPublisher,
-                MAX_MESSAGES
+                MAX_MESSAGES,
+                MAX_WINDOW_TOKENS
         );
     }
 
@@ -275,6 +277,44 @@ class SummarizingChatMemoryTest {
 
         assertThrows(SummarizationFailedException.class,
                 () -> summarizingChatMemory.get(CONVERSATION_ID));
+    }
+
+    @Test
+    void whenTokenLimitReachedButMessagesBeforeLimit_thenSummarizationTriggeredByTokens() {
+        // Add only 2 messages (less than MAX_MESSAGES=5)
+        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u1"));
+        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a1"));
+
+        // Thread has totalTokens >= maxWindowTokens
+        ConversationThread thread = new ConversationThread();
+        thread.setThreadKey(CONVERSATION_ID);
+        thread.setTotalTokens((long) MAX_WINDOW_TOKENS); // At the limit
+
+        when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.of(thread));
+
+        summarizingChatMemory.get(CONVERSATION_ID);
+
+        // Summarization should be triggered even though message count is below max
+        verify(conversationThreadRepository).findByThreadKey(CONVERSATION_ID);
+    }
+
+    @Test
+    void whenTokensBeforeLimitAndMessagesBeforeLimit_thenSummarizationNotTriggered() {
+        // Add only 2 messages (less than MAX_MESSAGES=5)
+        summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u1"));
+        summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("a1"));
+
+        // Thread has tokens well below the limit
+        ConversationThread thread = new ConversationThread();
+        thread.setThreadKey(CONVERSATION_ID);
+        thread.setTotalTokens(5000L); // Well below MAX_WINDOW_TOKENS=16000
+
+        when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.of(thread));
+
+        summarizingChatMemory.get(CONVERSATION_ID);
+
+        // Summarization should NOT be triggered
+        verify(conversationThreadRepository, never()).findByThreadKey(any());
     }
 
     private static OpenDaimonMessage createMockMessage(MessageRole role) {

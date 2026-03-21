@@ -38,3 +38,4 @@ logging:
     io.github.ngirchev.opendaimon.ai.springai.rest.WebClientLogCustomizer: DEBUG
     io.github.ngirchev.opendaimon.ai.springai.config: INFO
     org.springframework.ai.chat.model.MessageAggregator: WARN
+    io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService: DEBUG
