@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -42,7 +43,16 @@ import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIModelType;
 import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIPromptFactory;
 import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIChatService;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelRotationAspect;
+import io.github.ngirchev.opendaimon.ai.springai.tool.UnknownToolFallbackResolver;
 import io.github.ngirchev.opendaimon.ai.springai.tool.WebTools;
+import org.springframework.ai.model.tool.DefaultToolCallingManager;
+import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.ai.tool.resolution.DelegatingToolCallbackResolver;
+import org.springframework.ai.tool.resolution.SpringBeanToolCallbackResolver;
+import org.springframework.ai.tool.resolution.StaticToolCallbackResolver;
+import org.springframework.context.support.GenericApplicationContext;
+
+import java.util.List;
 import io.github.ngirchev.opendaimon.common.repository.OpenDaimonMessageRepository;
 import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterFreeModelResolver;
@@ -62,6 +72,7 @@ import io.github.ngirchev.opendaimon.common.service.SummarizationService;
     "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration",
     "org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration"
 })
+@AutoConfigureBefore(name = "org.springframework.ai.model.tool.autoconfigure.ToolCallingAutoConfiguration")
 @EnableConfigurationProperties({SpringAIProperties.class, OpenRouterModelsProperties.class})
 @Import(SpringAIFlywayConfig.class)
 @ConditionalOnProperty(name = "open-daimon.ai.spring-ai.enabled", havingValue = "true")
@@ -254,6 +265,27 @@ public class SpringAIAutoConfig {
     @ConditionalOnMissingBean
     public OpenRouterSseNormalizingCustomizer openRouterSseNormalizingCustomizer() {
         return new OpenRouterSseNormalizingCustomizer();
+    }
+
+    /**
+     * Custom {@link ToolCallingManager} that includes {@link UnknownToolFallbackResolver} as the last
+     * resolver in the chain. This handles tool calls from models that invoke built-in provider-side tools
+     * not registered in Spring AI (e.g. Gemini Code Execution {@code run}).
+     * <p>
+     * Declared before {@code ToolCallingAutoConfiguration} (via {@code @AutoConfigureBefore})
+     * so that {@code @ConditionalOnMissingBean} in that autoconfig skips creating a default bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean(ToolCallingManager.class)
+    public ToolCallingManager toolCallingManager(GenericApplicationContext applicationContext) {
+        var resolver = new DelegatingToolCallbackResolver(List.of(
+                new StaticToolCallbackResolver(List.of()),
+                SpringBeanToolCallbackResolver.builder().applicationContext(applicationContext).build(),
+                new UnknownToolFallbackResolver()
+        ));
+        return DefaultToolCallingManager.builder()
+                .toolCallbackResolver(resolver)
+                .build();
     }
 
     @Bean

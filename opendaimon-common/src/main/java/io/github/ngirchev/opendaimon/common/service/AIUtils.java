@@ -49,6 +49,8 @@ public class AIUtils {
      */
     private static final String JACKSON_INVALID_FORMAT_EXCEPTION_CLASS =
             "com.fasterxml.jackson.databind.exc.InvalidFormatException";
+    /** Prefix of the message thrown when a model calls an unknown tool (e.g. Gemini Code Execution "run"). */
+    private static final String NO_TOOL_CALLBACK_MESSAGE_PREFIX = "No ToolCallback found for tool name:";
     private static final String LOG_ERROR_PROCESSING_STREAMING_RESPONSE = "Error processing streaming response: {}";
     private static final AtomicInteger extractTextEmptyLogCount = new AtomicInteger(0);
     private static final int EXTRACT_TEXT_EMPTY_LOG_LIMIT = 3;
@@ -79,11 +81,18 @@ public class AIUtils {
             if (JACKSON_INVALID_FORMAT_EXCEPTION_CLASS.equals(t.getClass().getName())) {
                 return true;
             }
-            if (t instanceof WebClientResponseException) {
-                return true;
-            }
-            if (t instanceof DocumentContentNotExtractableException) {
-                return true;
+            switch (t) {
+                case IllegalStateException illegalStateException when t.getMessage() != null && t.getMessage().startsWith(NO_TOOL_CALLBACK_MESSAGE_PREFIX) -> {
+                    return true;
+                }
+                case WebClientResponseException webClientResponseException -> {
+                    return true;
+                }
+                case DocumentContentNotExtractableException documentContentNotExtractableException -> {
+                    return true;
+                }
+                default -> {
+                }
             }
             t = t.getCause();
         }

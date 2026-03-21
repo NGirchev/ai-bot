@@ -244,6 +244,13 @@ public class OpenRouterModelRotationAspect {
                     && ife.getTargetType().getName().contains("ChatCompletionFinishReason")) {
                 return true;
             }
+            // Model called an unknown built-in provider tool (e.g. Gemini Code Execution "run").
+            // UnknownToolFallbackResolver should prevent this, but guard here as well.
+            if (t instanceof IllegalStateException
+                    && t.getMessage() != null
+                    && t.getMessage().startsWith("No ToolCallback found for tool name:")) {
+                return true;
+            }
         }
         WebClientResponseException w = findWebClientResponseException(error);
         if (w == null) {
