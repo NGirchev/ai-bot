@@ -30,3 +30,4 @@
 - [ ] Image generation
 - [ ] Encoding DB
 - [ ] Asynchronous processing for telegram
+- [ ] Show simple description for the models

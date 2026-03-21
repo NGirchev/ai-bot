@@ -43,6 +43,12 @@ public class AIUtils {
      */
     private static final String OPENROUTER_EMPTY_STREAM_EXCEPTION_CLASS =
             "io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterEmptyStreamException";
+    /**
+     * Jackson exception class name: thrown when finish_reason has an unknown enum value (e.g. "error" from Gemini).
+     * Normalized by OpenRouterSseNormalizingCustomizer, but guard here to suppress full stack trace if it leaks.
+     */
+    private static final String JACKSON_INVALID_FORMAT_EXCEPTION_CLASS =
+            "com.fasterxml.jackson.databind.exc.InvalidFormatException";
     private static final String LOG_ERROR_PROCESSING_STREAMING_RESPONSE = "Error processing streaming response: {}";
     private static final AtomicInteger extractTextEmptyLogCount = new AtomicInteger(0);
     private static final int EXTRACT_TEXT_EMPTY_LOG_LIMIT = 3;
@@ -68,6 +74,9 @@ public class AIUtils {
     public static boolean shouldLogWithoutStacktrace(Throwable t) {
         while (t != null) {
             if (OPENROUTER_EMPTY_STREAM_EXCEPTION_CLASS.equals(t.getClass().getName())) {
+                return true;
+            }
+            if (JACKSON_INVALID_FORMAT_EXCEPTION_CLASS.equals(t.getClass().getName())) {
                 return true;
             }
             if (t instanceof WebClientResponseException) {

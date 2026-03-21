@@ -15,6 +15,8 @@ import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
 import io.github.ngirchev.opendaimon.common.exception.ModelGuardrailException;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -233,6 +235,13 @@ public class OpenRouterModelRotationAspect {
     private boolean isRetryable(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause()) {
             if (t instanceof OpenRouterEmptyStreamException) {
+                return true;
+            }
+            // Fallback: Jackson fails to deserialize unknown finish_reason values (e.g. "error" from Gemini).
+            // OpenRouterSseNormalizingCustomizer should prevent this, but guard here as well.
+            if (t instanceof InvalidFormatException ife
+                    && ife.getTargetType() != null
+                    && ife.getTargetType().getName().contains("ChatCompletionFinishReason")) {
                 return true;
             }
         }

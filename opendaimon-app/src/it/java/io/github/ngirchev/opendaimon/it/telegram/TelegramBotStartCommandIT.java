@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
         TelegramBotStartCommandIT.TestConfig.class
 })
 @TestPropertySource(properties = {
+        // Slim context excludes CoreAutoConfig (no IWhitelistService); disable bulkhead auto-config from merged application.yml
+        "open-daimon.common.bulkhead.enabled=false",
         "open-daimon.telegram.enabled=true",
         "open-daimon.telegram.token=test-token",
         "open-daimon.telegram.username=test-bot",

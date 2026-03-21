@@ -29,6 +29,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.netty.http.client.HttpClient;
 import io.github.ngirchev.opendaimon.ai.springai.memory.SummarizingChatMemory;
+import io.github.ngirchev.opendaimon.ai.springai.rest.OpenRouterSseNormalizingCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.rest.RestClientLogCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.rest.WebClientLogCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.service.DocumentProcessingService;
@@ -249,6 +250,12 @@ public class SpringAIAutoConfig {
      * WebClientCustomizer for OpenAI/OpenRouter WebClient timeouts.
      * Spring AI uses WebClientCustomizer for WebClient autoconfiguration.
      */
+    @Bean
+    @ConditionalOnMissingBean
+    public OpenRouterSseNormalizingCustomizer openRouterSseNormalizingCustomizer() {
+        return new OpenRouterSseNormalizingCustomizer();
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public WebClientCustomizer aiWebClientTimeoutCustomizer(SpringAIProperties properties) {
