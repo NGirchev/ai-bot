@@ -1,21 +1,29 @@
-# Shared configuration for integration tests
-# Use with @ActiveProfiles("integration-test")
+# Full settings for @ActiveProfiles("integration-test") (single profile; do not combine with "test").
 
 spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   ai:
     openai:
       api-key: ${OPENROUTER_KEY:}
       base-url: https://openrouter.ai/api
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
-  # Disable unneeded autoconfig for tests (do not exclude SpringAIAutoConfig — needed for authorotation in IT)
   autoconfigure:
     exclude:
       - org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration
       - org.springframework.ai.model.chat.memory.repository.jdbc.autoconfigure.JdbcChatMemoryRepositoryAutoConfiguration
 
-# open-daimon settings for integration tests
 open-daimon:
+  rest:
+    enabled: false
+  ui:
+    enabled: false
   telegram:
     token: test-token
     username: test-bot
@@ -28,18 +36,44 @@ open-daimon:
   common:
     bulkhead:
       enabled: true
+    assistant-role: You are a helpful assistant
     max-output-tokens: 1000
     max-reasoning-tokens: 500
     max-user-message-tokens: 4000
     max-total-prompt-tokens: 32000
     summarization:
+      message-window-size: 5
+      max-window-tokens: 16000
+      max-output-tokens: 2000
       prompt: "You are an assistant. Create a summary in JSON. Conversation:"
+    chat-routing:
+      ADMIN:
+        max-price: 0.5
+        required-capabilities:
+          - AUTO
+        optional-capabilities: []
+      VIP:
+        max-price: 0.5
+        required-capabilities:
+          - CHAT
+        optional-capabilities:
+          - TOOL_CALLING
+          - WEB
+      REGULAR:
+        max-price: 0.0
+        required-capabilities:
+          - CHAT
+        optional-capabilities: []
   ai:
+    openrouter:
+      enabled: false
+    deepseek:
+      enabled: false
     spring-ai:
       enabled: true
       openrouter-auto-rotation:
         models:
-          enabled: true  # for integration tests — verify full path with rotation
+          enabled: true
           api:
             key: ${OPENROUTER_KEY:}
             url: https://openrouter.ai/api
@@ -74,7 +108,6 @@ open-daimon:
           document-extract-error-pdf: "Could not extract text from file \"%s\". The file may be a scan or image."
           document-extract-error-document: "Could not extract text from file \"%s\" (type: %s)."
           augmented-prompt-template: "Context:\n%s\n\nQuestion: %s"
-      # Models for test - use openrouter/auto with free max_price
       models:
         list:
           - name: openrouter/auto

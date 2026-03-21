@@ -17,8 +17,10 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,8 @@ import java.util.Set;
 
 import static io.github.ngirchev.opendaimon.common.ai.LlmParamNames.*;
 import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -148,5 +152,46 @@ class SpringAIPromptFactoryTest {
         ChatResponse response = spec.call().chatResponse();
         assertNotNull(response);
         verify(ollamaChatModel, times(1)).call(any(Prompt.class));
+    }
+
+    @Test
+    void preparePrompt_ollama_reasoningBudget_addsToNumPredict() {
+        Map<String, Object> body = Map.of("reasoning", Map.of("max_tokens", 400));
+        var spec = promptFactory.preparePrompt(
+                ollamaModelConfig,
+                "ollama-model",
+                body,
+                null,
+                false,
+                List.of(new UserMessage("Hi")),
+                new OpenDaimonChatOptions(0.7, 1000, null, "Hi", false, Map.of())
+        );
+        spec.call().chatResponse();
+        ArgumentCaptor<Prompt> captor = ArgumentCaptor.forClass(Prompt.class);
+        verify(ollamaChatModel).call(captor.capture());
+        ChatOptions options = captor.getValue().getOptions();
+        assertInstanceOf(OllamaChatOptions.class, options);
+        assertEquals(1400, ((OllamaChatOptions) options).getNumPredict());
+    }
+
+    @Test
+    void preparePrompt_ollama_thinkFalse_doesNotAddReasoningToNumPredict() {
+        ollamaModelConfig.setThink(false);
+        Map<String, Object> body = Map.of("reasoning", Map.of("max_tokens", 400));
+        var spec = promptFactory.preparePrompt(
+                ollamaModelConfig,
+                "ollama-model",
+                body,
+                null,
+                false,
+                List.of(new UserMessage("Hi")),
+                new OpenDaimonChatOptions(0.7, 1000, null, "Hi", false, Map.of())
+        );
+        spec.call().chatResponse();
+        ArgumentCaptor<Prompt> captor = ArgumentCaptor.forClass(Prompt.class);
+        verify(ollamaChatModel).call(captor.capture());
+        ChatOptions options = captor.getValue().getOptions();
+        assertInstanceOf(OllamaChatOptions.class, options);
+        assertEquals(1000, ((OllamaChatOptions) options).getNumPredict());
     }
 }

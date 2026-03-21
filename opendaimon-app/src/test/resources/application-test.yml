@@ -1,4 +1,4 @@
-# Test profile: enable with @ActiveProfiles("test") on Spring tests in this module.
+# Profile "test": use @ActiveProfiles("test") on app tests (not for integration-test-only ITs).
 spring:
   autoconfigure:
     exclude:
@@ -21,8 +21,13 @@ spring:
     ollama:
       base-url: http://localhost:11434
 
-# Prod-like token limits for streaming IT; prompt = system + history + current ≤ max-total-prompt-tokens.
+# REST/UI off by default for tests (avoids RestFlyway without coreFlyway when Core is excluded).
+# RAG off: RAGAutoConfig is registered separately and needs an EMBEDDING model when enabled.
 open-daimon:
+  rest:
+    enabled: false
+  ui:
+    enabled: false
   telegram:
     enabled: true
   common:
@@ -32,6 +37,9 @@ open-daimon:
     max-user-message-tokens: 4000
     max-total-prompt-tokens: 32000
     summarization:
+      message-window-size: 5
+      max-window-tokens: 16000
+      max-output-tokens: 2000
       prompt: "You are an assistant. Create a summary in JSON. Conversation:"
     chat-routing:
       ADMIN:
@@ -47,7 +55,7 @@ open-daimon:
           - TOOL_CALLING
           - WEB
       REGULAR:
-        max-price: 0.5
+        max-price: 0.0
         required-capabilities:
           - CHAT
         optional-capabilities: []
@@ -58,6 +66,8 @@ open-daimon:
       enabled: false
     spring-ai:
       enabled: false
+      rag:
+        enabled: false
       openrouter-auto-rotation:
         models:
           enabled: false

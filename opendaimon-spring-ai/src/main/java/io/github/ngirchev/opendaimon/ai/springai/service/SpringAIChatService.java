@@ -41,7 +41,7 @@ public class SpringAIChatService {
     ) {
         String modelForStream = resolveModelName(modelConfig, chatOptions != null ? chatOptions.body() : null);
         Object conversationId = command != null ? command.metadata().get(AICommand.THREAD_KEY_FIELD) : null;
-        boolean webEnabled = command != null && command.modelCapabilities().contains(ModelCapabilities.WEB);
+        boolean webEnabled = webToolsEnabled(command);
         var promptBuilder = promptFactory.preparePrompt(
                 modelConfig,
                 modelForStream,
@@ -129,7 +129,7 @@ public class SpringAIChatService {
             List<Message> messages
     ) {
         Object conversationId = command != null ? command.metadata().get(AICommand.THREAD_KEY_FIELD) : null;
-        boolean webEnabled = command != null && command.modelCapabilities().contains(ModelCapabilities.WEB);
+        boolean webEnabled = webToolsEnabled(command);
         Map<String, Object> body = chatOptions != null ? chatOptions.body() : null;
         return callChatOnce(modelConfig, body, conversationId, webEnabled, messages, chatOptions);
     }
@@ -191,6 +191,18 @@ public class SpringAIChatService {
             return flux;
         }
         return tracker.track(modelId, flux);
+    }
+
+    /**
+     * Registers web tools (Serper, fetch_url) when the command requests {@link ModelCapabilities#WEB}
+     * in required or optional capabilities (e.g. VIP tier puts WEB in optional for routing).
+     */
+    private static boolean webToolsEnabled(AICommand command) {
+        if (command == null) {
+            return false;
+        }
+        return command.modelCapabilities().contains(ModelCapabilities.WEB)
+                || command.optionalCapabilities().contains(ModelCapabilities.WEB);
     }
 
     private void logStreamError(Throwable error, String modelName, Map<String, Object> body) {

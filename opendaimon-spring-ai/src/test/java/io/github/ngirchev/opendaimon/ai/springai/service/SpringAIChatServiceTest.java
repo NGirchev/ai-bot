@@ -171,6 +171,112 @@ class SpringAIChatServiceTest {
     }
 
     @Test
+    void callChat_webEnabledTrueWhenWebOnlyInOptionalCapabilities() {
+        ChatResponse mockResponse = ChatResponse.builder()
+                .generations(List.of(new Generation(new AssistantMessage("ok"))))
+                .build();
+        org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec requestSpec =
+                mock(org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec.class, RETURNS_DEEP_STUBS);
+        when(requestSpec.call().chatResponse()).thenReturn(mockResponse);
+        when(promptFactory.preparePrompt(
+                eq(modelConfig),
+                any(),
+                any(),
+                any(),
+                anyBoolean(),
+                any(),
+                any())).thenReturn(requestSpec);
+
+        OpenDaimonChatOptions options = new OpenDaimonChatOptions(0.7, 1000, "System", "User", false, Map.of());
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT),
+                Set.of(ModelCapabilities.WEB),
+                0.7, 1000, null, "System", "User", false, Map.of(), Map.of(), List.of());
+
+        chatService.callChat(modelConfig, command, options, List.of());
+
+        verify(promptFactory).preparePrompt(
+                eq(modelConfig),
+                any(),
+                any(),
+                any(),
+                eq(true),
+                any(),
+                eq(options));
+    }
+
+    @Test
+    void streamChat_webEnabledTrueWhenWebOnlyInOptionalCapabilities() {
+        when(openRouterStreamMetricsTrackerProvider.getIfAvailable()).thenReturn(null);
+        ChatResponse chunk = ChatResponse.builder()
+                .generations(List.of(new Generation(new AssistantMessage("x"))))
+                .build();
+        org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec requestSpec =
+                mock(org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec.class, RETURNS_DEEP_STUBS);
+        when(requestSpec.stream().chatResponse()).thenReturn(Flux.just(chunk));
+        when(promptFactory.preparePrompt(
+                eq(modelConfig),
+                any(),
+                any(),
+                any(),
+                anyBoolean(),
+                any(),
+                any())).thenReturn(requestSpec);
+
+        OpenDaimonChatOptions options = new OpenDaimonChatOptions(0.7, 1000, null, "Hi", true, Map.of());
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT),
+                Set.of(ModelCapabilities.WEB),
+                0.7, 1000, null, null, "Hi", true, Map.of(), Map.of(), List.of());
+
+        chatService.streamChat(modelConfig, command, options, List.of());
+
+        verify(promptFactory).preparePrompt(
+                eq(modelConfig),
+                any(),
+                any(),
+                any(),
+                eq(true),
+                any(),
+                eq(options));
+    }
+
+    @Test
+    void callChat_webEnabledFalseWhenWebNotInRequiredOrOptional() {
+        ChatResponse mockResponse = ChatResponse.builder()
+                .generations(List.of(new Generation(new AssistantMessage("ok"))))
+                .build();
+        org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec requestSpec =
+                mock(org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec.class, RETURNS_DEEP_STUBS);
+        when(requestSpec.call().chatResponse()).thenReturn(mockResponse);
+        when(promptFactory.preparePrompt(
+                eq(modelConfig),
+                any(),
+                any(),
+                any(),
+                anyBoolean(),
+                any(),
+                any())).thenReturn(requestSpec);
+
+        OpenDaimonChatOptions options = new OpenDaimonChatOptions(0.7, 1000, "System", "User", false, Map.of());
+        ChatAICommand command = new ChatAICommand(
+                Set.of(ModelCapabilities.CHAT),
+                Set.of(),
+                0.7, 1000, null, "System", "User", false, Map.of(), Map.of(), List.of());
+
+        chatService.callChat(modelConfig, command, options, List.of());
+
+        verify(promptFactory).preparePrompt(
+                eq(modelConfig),
+                any(),
+                any(),
+                any(),
+                eq(false),
+                any(),
+                eq(options));
+    }
+
+    @Test
     void callChat_webClientResponseException_thrown() {
         org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec requestSpec =
                 mock(org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec.class, RETURNS_DEEP_STUBS);

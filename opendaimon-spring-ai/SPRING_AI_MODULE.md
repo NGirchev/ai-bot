@@ -56,11 +56,13 @@ Stream: determined by endpoint — `POST /api/v1/session` (sync) vs `POST /api/v
 
 ### DefaultAICommandFactory — base capabilities
 
-| `UserPriority` | Base capabilities | Extra |
-|----------------|-------------------|-------|
-| `ADMIN` | `{AUTO}` | — |
-| `VIP` | `{CHAT, TOOL_CALLING, WEB}` | `max_price=0` |
-| `REGULAR` | `{CHAT}` | — |
+Tier fields come from `open-daimon.common.chat-routing` (`required-capabilities`, `optional-capabilities`, `max-price`).
+
+| `UserPriority` | Required capabilities | Optional capabilities | Extra |
+|----------------|----------------------|------------------------|-------|
+| `ADMIN` | `{AUTO}` | (from config) | — |
+| `VIP` | `{CHAT}` | `{TOOL_CALLING, WEB}` (typical) | e.g. `max_price=0` from VIP tier |
+| `REGULAR` | `{CHAT}` | (from config) | — |
 
 Adds `VISION` if image attachments are present.
 If `preferredModelId` in metadata → `FixedModelChatAICommand`, otherwise → `ChatAICommand`.
@@ -95,6 +97,8 @@ If `springAiProperties.mock = true` → return mock response immediately, no mod
 ### Step 4 — execution
 - `stream = true` → `SpringAIChatService.streamChat()` → returns `SpringAIStreamResponse(Flux<ChatResponse>)`
 - `stream = false` → `SpringAIChatService.callChat()` → returns `SpringAIResponse(ChatResponse)`
+
+Web tools (`WebTools` / Serper) are attached to the prompt when the command requests `WEB` in **required** (`modelCapabilities`) **or** **optional** (`optionalCapabilities`) — so VIP-style routing (WEB optional) still registers tools.
 
 ---
 
@@ -132,6 +136,21 @@ Intercepts `callChat()` and `streamChat()`. Retries across candidates on retryab
 **Stream-specific:** retry via `Flux.onErrorResume` — switches to next candidate on mid-stream error.
 
 **AUTO + stream edge case:** if only one candidate and it emits `OpenRouterEmptyStreamException`, adds a `CHAT` candidate as fallback for second attempt.
+
+---
+
+## SpringAIPromptFactory — provider options
+
+**OpenAI / OpenRouter**
+
+- `max_tokens` from command / body / per-model `maxOutputTokens`.
+- Reasoning budget: `extra_body.reasoning` with `max_tokens` when `open-daimon.common.max-reasoning-tokens` (or per-model `maxReasoningTokens` &gt; 0) is set; `0` disables.
+
+**Ollama**
+
+- Ollama does **not** expose a separate reasoning token limit in the API (thinking and answer share one generation budget).
+- `num_predict` is set to **`max_tokens + reasoning_budget`** when a reasoning budget is resolved and thinking is **not** explicitly disabled (`SpringAIModelConfig.think: false`). Otherwise `num_predict = max_tokens` only.
+- This mirrors the intent of `max-reasoning-tokens`: reserve headroom so a thinking trace does not consume the entire `num_predict` before `message.content` is filled.
 
 ---
 

@@ -57,9 +57,9 @@ open-daimon:
         optional-capabilities: []
     # Summarization of long conversations (manual and Spring AI modes).
     summarization:
-      message-window-size: 5  # total messages (user + assistant); 40 = 20 full exchanges
+      message-window-size: 10   # total messages (user + assistant); 40 = 20 full exchanges
       max-window-tokens: 16000  # token limit for context window before summarization; safe for 32K models
-      max-output-tokens: 2000
+      max-output-tokens: 6000
       # Prompt for AI to produce summary + memory_bullets (JSON). Conversation is sent as separate user message.
       prompt: |
         You are summarizing a conversation for an AI assistant's long-term memory.
@@ -231,7 +231,7 @@ open-daimon:
             provider-type: OLLAMA
             priority: 1
             max-reasoning-tokens: 0  # Ollama does not support reasoning parameter
-            # allowed-roles not set — accessible to all roles
+            think: false  # Disable Qwen3 thinking mode — prevents token budget exhaustion that causes empty responses
           - name: "qwen3-embedding:8b"
             capabilities:
               - EMBEDDING

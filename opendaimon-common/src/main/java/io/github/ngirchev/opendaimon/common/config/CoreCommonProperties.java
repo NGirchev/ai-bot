@@ -31,8 +31,10 @@ public class CoreCommonProperties {
     private Integer maxOutputTokens;
 
     /**
-     * Token budget for reasoning/thinking (OpenRouter models with reasoning support).
-     * Sent as reasoning.max_tokens in extra_body. Optional; if not set, the block is not sent.
+     * Token budget for reasoning/thinking (OpenRouter: {@code extra_body.reasoning.max_tokens}).
+     * For Ollama, there is no separate API field; when thinking is enabled, this budget is added to
+     * {@code num_predict} alongside {@link #maxOutputTokens}. Optional; if not set, the block is not sent (OpenRouter)
+     * and no extra headroom is added (Ollama).
      */
     @Min(value = 1, message = "maxReasoningTokens must be >= 1")
     private Integer maxReasoningTokens;

@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.bulkhead.service.PriorityRequestExecutor;
@@ -51,6 +52,7 @@ import static org.mockito.Mockito.mock;
 @SpringBootTest(classes = {
         TelegramCommandHandlerConfig.class
 })
+@ActiveProfiles("test")
 @Import(StartTelegramTextCommandHandlerProviderTest.TestConfig.class)
 @TestPropertySource(properties = {
         "open-daimon.telegram.enabled=true",
@@ -182,6 +184,9 @@ class StartTelegramTextCommandHandlerProviderTest {
             props.setMaxTotalPromptTokens(32000);
             CoreCommonProperties.SummarizationProperties summarization = new CoreCommonProperties.SummarizationProperties();
             summarization.setMessageWindowSize(20);
+            summarization.setMaxWindowTokens(16000);
+            summarization.setMaxOutputTokens(2000);
+            summarization.setPrompt("You are an assistant. Create a summary in JSON. Conversation:");
             props.setSummarization(summarization);
             CoreCommonProperties.PriorityChatRoutingProperties adminRouting =
                     new CoreCommonProperties.PriorityChatRoutingProperties();

@@ -36,12 +36,15 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link SummarizingChatMemory}.
- * Summarization triggers when message count in ChatMemory reaches maxMessages.
+ * Summarization triggers when message count in ChatMemory reaches maxMessages,
+ * or when thread totalTokens reaches maxWindowTokens (checked via findByThreadKey on each get
+ * while message count is below the message limit).
  */
 @ExtendWith(MockitoExtension.class)
 class SummarizingChatMemoryTest {
@@ -79,11 +82,13 @@ class SummarizingChatMemoryTest {
     void whenGetWithFewerThanMaxMessages_thenReturnsMessagesWithoutSummarization() {
         summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("Hello"));
         summarizingChatMemory.add(CONVERSATION_ID, new AssistantMessage("Hi"));
+        when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.empty());
 
         List<Message> result = summarizingChatMemory.get(CONVERSATION_ID);
 
         assertEquals(2, result.size());
-        verify(conversationThreadRepository, never()).findByThreadKey(any());
+        verify(conversationThreadRepository, times(1)).findByThreadKey(CONVERSATION_ID);
+        verify(summarizationService, never()).summarizeThread(any(), any());
     }
 
     @Test
@@ -137,10 +142,12 @@ class SummarizingChatMemoryTest {
         for (int i = 0; i < MAX_MESSAGES - 1; i++) {
             summarizingChatMemory.add(CONVERSATION_ID, new UserMessage("u" + i));
         }
+        when(conversationThreadRepository.findByThreadKey(CONVERSATION_ID)).thenReturn(Optional.empty());
 
         summarizingChatMemory.get(CONVERSATION_ID);
 
-        verify(conversationThreadRepository, never()).findByThreadKey(any());
+        verify(conversationThreadRepository, times(1)).findByThreadKey(CONVERSATION_ID);
+        verify(summarizationService, never()).summarizeThread(any(), any());
     }
 
     @Test
@@ -294,8 +301,8 @@ class SummarizingChatMemoryTest {
 
         summarizingChatMemory.get(CONVERSATION_ID);
 
-        // Summarization should be triggered even though message count is below max
-        verify(conversationThreadRepository).findByThreadKey(CONVERSATION_ID);
+        // Token check in get(), then load thread again in performSummarizationAndUpdateChatMemory
+        verify(conversationThreadRepository, times(2)).findByThreadKey(CONVERSATION_ID);
     }
 
     @Test
@@ -313,8 +320,9 @@ class SummarizingChatMemoryTest {
 
         summarizingChatMemory.get(CONVERSATION_ID);
 
-        // Summarization should NOT be triggered
-        verify(conversationThreadRepository, never()).findByThreadKey(any());
+        // Thread is loaded once to evaluate totalTokens vs maxWindowTokens
+        verify(conversationThreadRepository, times(1)).findByThreadKey(CONVERSATION_ID);
+        verify(summarizationService, never()).summarizeThread(any(), any());
     }
 
     private static OpenDaimonMessage createMockMessage(MessageRole role) {

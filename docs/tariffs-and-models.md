@@ -19,17 +19,21 @@ Priority is not a separate “plan” in the app; it is derived from Telegram (a
 
 ## 2. Capabilities by priority
 
-In [DefaultAICommandFactory](../opendaimon-common/src/main/java/io/github/ngirchev/opendaimon/common/ai/factory/DefaultAICommandFactory.java), priority determines the **ModelCapabilities** set (what the model must support):
+In [DefaultAICommandFactory](../opendaimon-common/src/main/java/io/github/ngirchev/opendaimon/common/ai/factory/DefaultAICommandFactory.java), priority maps to a **chat-routing** tier in config (`required-capabilities`, `optional-capabilities`, `max-price`):
 
-| Priority   | Capabilities | Extra |
-|-----------|---------------|-------|
-| **ADMIN** | `AUTO` | Single capability: “any suitable model”; in practice resolves to openrouter/auto; OpenRouter `max_price` from `chat-routing.ADMIN` |
-| **VIP**   | `CHAT`, `TOOL_CALLING`, `WEB` | OpenRouter `max_price` from `chat-routing.VIP` (e.g. free-only when set to `0`) |
-| **REGULAR** | `CHAT` | OpenRouter `max_price` from `chat-routing.REGULAR` |
+| Priority   | Required capabilities | Optional capabilities (typical) | Extra |
+|-----------|------------------------|----------------------------------|-------|
+| **ADMIN** | From `chat-routing.ADMIN` (e.g. `AUTO`) | From config | OpenRouter `max_price` from `chat-routing.ADMIN` |
+| **VIP**   | From `chat-routing.VIP` (e.g. `CHAT`) | From config (e.g. `TOOL_CALLING`, `WEB`) | OpenRouter `max_price` from `chat-routing.VIP` (e.g. free-only when set to `0`) |
+| **REGULAR** | From `chat-routing.REGULAR` (e.g. `CHAT`) | From config | OpenRouter `max_price` from `chat-routing.REGULAR` |
 
-If the request has image attachments, **VISION** is added to the set for all priorities.
+If the request has image attachments, **VISION** is added to the **required** set for all priorities.
 
-The gateway then calls `getCandidatesByCapabilities(capabilities, null)` and receives all registry models that satisfy **all** requested capabilities. There is no separate “free model search by model name”: cost is constrained per tier via **`max_price` in `open-daimon.common.chat-routing`**, together with the capability set above.
+The gateway calls `getCandidatesByCapabilities(required, …)` so models must satisfy **all required** capabilities. If **optional** capabilities are non-empty, candidates are **sorted** to prefer models that also match optional caps (e.g. `WEB`), without excluding models that only satisfy required caps.
+
+[SpringAIChatService](../opendaimon-spring-ai/src/main/java/io/github/ngirchev/opendaimon/ai/springai/service/SpringAIChatService.java) registers web tools when `WEB` appears in **required or optional** capabilities on the command.
+
+There is no separate “free model search by model name”: cost is constrained per tier via **`max_price` in `open-daimon.common.chat-routing`**, together with the capability sets above.
 
 ## 3. Free models: where they come from and how they are filtered
 
