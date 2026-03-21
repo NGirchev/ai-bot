@@ -36,9 +36,28 @@ open-daimon:
     max-output-tokens: 4000
     # Budget for reasoning (part of total; must be < max-output-tokens). Optional.
     max-reasoning-tokens: 1500
+    # AI model routing by user priority (same key style as telegram.access: ADMIN / VIP / REGULAR).
+    chat-routing:
+      ADMIN:
+        max-price: 5.0
+        required-capabilities:
+          - AUTO
+        optional-capabilities: []
+      VIP:
+        max-price: 0.5
+        required-capabilities:
+          - CHAT
+        optional-capabilities:
+          - TOOL_CALLING
+          - WEB
+      REGULAR:
+        max-price: 0
+        required-capabilities:
+          - CHAT
+        optional-capabilities: []
     # Summarization of long conversations (manual and Spring AI modes).
     summarization:
-      message-window-size: 40  # total messages (user + assistant); 40 = 20 full exchanges
+      message-window-size: 5  # total messages (user + assistant); 40 = 20 full exchanges
       max-window-tokens: 16000  # token limit for context window before summarization; safe for 32K models
       max-output-tokens: 2000
       # Prompt for AI to produce summary + memory_bullets (JSON). Conversation is sent as separate user message.

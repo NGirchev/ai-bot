@@ -9,6 +9,7 @@ import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.factory.DefaultAICommandFactory;
+import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIResponse;
 import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
@@ -90,7 +91,36 @@ class PreferredModelSelectionTest {
                 chatService, mem, null, doc, rag);
 
         when(userPriorityService.getUserPriority(any())).thenReturn(UserPriority.VIP);
-        factory = new DefaultAICommandFactory(userPriorityService, 2000, null);
+        factory = new DefaultAICommandFactory(userPriorityService, preferredModelTestCoreProperties());
+    }
+
+    /** Minimal {@link CoreCommonProperties} for this test (no Spring binding / validation). */
+    private static CoreCommonProperties preferredModelTestCoreProperties() {
+        CoreCommonProperties p = new CoreCommonProperties();
+        p.setMaxOutputTokens(2000);
+        p.setMaxReasoningTokens(null);
+
+        CoreCommonProperties.PriorityChatRoutingProperties admin = new CoreCommonProperties.PriorityChatRoutingProperties();
+        admin.setMaxPrice(0.5);
+        admin.setRequiredCapabilities(List.of(ModelCapabilities.AUTO));
+        admin.setOptionalCapabilities(List.of());
+
+        CoreCommonProperties.PriorityChatRoutingProperties vip = new CoreCommonProperties.PriorityChatRoutingProperties();
+        vip.setMaxPrice(0.5);
+        vip.setRequiredCapabilities(List.of(ModelCapabilities.CHAT));
+        vip.setOptionalCapabilities(List.of(ModelCapabilities.TOOL_CALLING, ModelCapabilities.WEB));
+
+        CoreCommonProperties.PriorityChatRoutingProperties regular = new CoreCommonProperties.PriorityChatRoutingProperties();
+        regular.setMaxPrice(0.5);
+        regular.setRequiredCapabilities(List.of(ModelCapabilities.CHAT));
+        regular.setOptionalCapabilities(List.of());
+
+        CoreCommonProperties.ChatRoutingProperties cr = new CoreCommonProperties.ChatRoutingProperties();
+        cr.setAdmin(admin);
+        cr.setVip(vip);
+        cr.setRegular(regular);
+        p.setChatRouting(cr);
+        return p;
     }
 
     /**

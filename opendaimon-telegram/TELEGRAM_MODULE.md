@@ -238,7 +238,8 @@ Evaluated in order — first match wins:
 ### UC-17: `/model` — reset to auto
 **Trigger:** `MODEL_AUTO` callback
 **Handler:** `UserModelPreferenceService.clearPreference()`
-- Keyboard shows "Auto" label
+- Callback ack uses `telegram.model.ack.auto` (user language)
+- Persistent keyboard left button uses `telegram.model.auto` when no fixed model is stored
 
 ---
 
@@ -259,7 +260,7 @@ Evaluated in order — first match wins:
 **Handler:** `NewThreadTelegramCommandHandler`
 - Closes current active thread (if any)
 - `ConversationThreadService.createNewThread()` → new thread
-- Replies: "New conversation started" + optionally "Previous conversation saved"
+- Reply text from `telegram.newthread.body` / `telegram.newthread.previous.saved` (`User.languageCode`)
 - No AI call
 
 ---
@@ -362,9 +363,11 @@ On context rebuild, expired refs are skipped; active refs are loaded from MinIO.
 
 Sent after every successful AI response via `PersistentKeyboardService.sendKeyboard()`.
 
+`ReplyKeyboardMarkup` does **not** set `is_persistent` (default `false`). When `is_persistent` was `true`, Telegram Android often did not let the user leave the custom keyboard for the normal IME via the usual back affordance; the default keeps that transition working while the bot still re-sends the keyboard on new replies.
+
 | Button | Content |
 |--------|---------|
-| Left (model) | Preferred model name, or "Auto" |
+| Left (model) | Preferred model name, or localized `telegram.model.auto` (from `User.languageCode`) |
 | Right (context) | `N%` of context window used |
 
 Pressing left button sends `🤖 <model>` text → mapped to `MODEL` command.
@@ -421,5 +424,7 @@ Table: `telegram_whitelist` — allowed users (supplement to channel/ID config).
 On `ApplicationReadyEvent`:
 1. `TelegramUsersStartupInitializer` — creates/updates DB records for all IDs in `access.admin/vip/regular`; fetches real names from Telegram `GetChat` if bot available
 2. `TelegramBotRegistrar` — registers bot with Telegram, calls `TelegramBotMenuService.setupBotMenu()` for ru and en
+
+The control that opens the bot command list in the Telegram client is labeled by **Telegram app language** (e.g. "Menu" vs "Меню"), not by the bot’s `/language` setting. `setMyCommands` only defines the command list text per locale.
 
 Session cleanup: `TelegramUserActivityService` runs every 10 minutes, closes sessions inactive > 15 minutes.

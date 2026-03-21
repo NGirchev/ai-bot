@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.bulkhead.service.PriorityRequestExecutor;
+import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
@@ -182,6 +183,26 @@ class StartTelegramTextCommandHandlerProviderTest {
             CoreCommonProperties.SummarizationProperties summarization = new CoreCommonProperties.SummarizationProperties();
             summarization.setMessageWindowSize(20);
             props.setSummarization(summarization);
+            CoreCommonProperties.PriorityChatRoutingProperties adminRouting =
+                    new CoreCommonProperties.PriorityChatRoutingProperties();
+            adminRouting.setMaxPrice(0.5);
+            adminRouting.setRequiredCapabilities(List.of(ModelCapabilities.AUTO));
+            adminRouting.setOptionalCapabilities(List.of());
+            CoreCommonProperties.PriorityChatRoutingProperties vip =
+                    new CoreCommonProperties.PriorityChatRoutingProperties();
+            vip.setMaxPrice(0.5);
+            vip.setRequiredCapabilities(List.of(ModelCapabilities.CHAT));
+            vip.setOptionalCapabilities(List.of(ModelCapabilities.TOOL_CALLING, ModelCapabilities.WEB));
+            CoreCommonProperties.PriorityChatRoutingProperties regularRouting =
+                    new CoreCommonProperties.PriorityChatRoutingProperties();
+            regularRouting.setMaxPrice(0.5);
+            regularRouting.setRequiredCapabilities(List.of(ModelCapabilities.CHAT));
+            regularRouting.setOptionalCapabilities(List.of());
+            CoreCommonProperties.ChatRoutingProperties chatRouting = new CoreCommonProperties.ChatRoutingProperties();
+            chatRouting.setAdmin(adminRouting);
+            chatRouting.setVip(vip);
+            chatRouting.setRegular(regularRouting);
+            props.setChatRouting(chatRouting);
             return props;
         }
 

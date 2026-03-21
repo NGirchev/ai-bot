@@ -130,6 +130,7 @@ class NewThreadTelegramCommandHandlerTest {
 
         TelegramUser telegramUser = new TelegramUser();
         telegramUser.setTelegramId(100L);
+        telegramUser.setLanguageCode("en");
         when(userService.getOrCreateUser(from)).thenReturn(telegramUser);
         when(threadRepository.findMostRecentActiveThread(telegramUser)).thenReturn(Optional.empty());
 
@@ -159,6 +160,7 @@ class NewThreadTelegramCommandHandlerTest {
 
         TelegramUser telegramUser = new TelegramUser();
         telegramUser.setTelegramId(100L);
+        telegramUser.setLanguageCode("en");
         when(userService.getOrCreateUser(from)).thenReturn(telegramUser);
 
         ConversationThread oldThread = new ConversationThread();

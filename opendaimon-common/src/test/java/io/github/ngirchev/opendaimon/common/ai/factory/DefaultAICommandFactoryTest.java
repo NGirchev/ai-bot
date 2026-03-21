@@ -12,11 +12,13 @@ import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.command.IChatCommand;
 import io.github.ngirchev.opendaimon.common.command.ICommandType;
+import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AttachmentType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -25,12 +27,25 @@ import static io.github.ngirchev.opendaimon.common.ai.LlmParamNames.MAX_PRICE;
 @ExtendWith(MockitoExtension.class)
 class DefaultAICommandFactoryTest {
 
+    private static final double ADMIN_MAX_PRICE = 0.5;
+    private static final Set<ModelCapabilities> ADMIN_REQUIRED_CAPABILITIES = Set.of(ModelCapabilities.AUTO);
+    private static final Set<ModelCapabilities> ADMIN_OPTIONAL_CAPABILITIES = Set.of();
+
+    private static final double VIP_MAX_PRICE = 0.5;
+    private static final Set<ModelCapabilities> VIP_REQUIRED_CAPABILITIES = Set.of(ModelCapabilities.CHAT);
+    private static final Set<ModelCapabilities> VIP_OPTIONAL_CAPABILITIES =
+            Set.of(ModelCapabilities.TOOL_CALLING, ModelCapabilities.WEB);
+
+    private static final double REGULAR_MAX_PRICE = 0.5;
+    private static final Set<ModelCapabilities> REGULAR_REQUIRED_CAPABILITIES = Set.of(ModelCapabilities.CHAT);
+    private static final Set<ModelCapabilities> REGULAR_OPTIONAL_CAPABILITIES = Set.of();
+
     @Mock
     private IUserPriorityService userPriorityService;
 
     @Test
     void whenAdmin_thenUsesAutoModelAndOpenRouterAuto() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(1L)).thenReturn(UserPriority.ADMIN);
 
         AICommand command = factory.createCommand(new TestChatCommand(1L, "hi", false), Map.of());
@@ -39,11 +54,12 @@ class DefaultAICommandFactoryTest {
         ChatAICommand chatCommand = (ChatAICommand) command;
         assertEquals(1, chatCommand.modelCapabilities().size(), "ADMIN must use AUTO only");
         assertTrue(chatCommand.modelCapabilities().contains(ModelCapabilities.AUTO));
+        assertEquals(ADMIN_MAX_PRICE, chatCommand.body().get(MAX_PRICE));
     }
 
     @Test
     void whenVip_thenUsesChatToolCallingWebAndAddsMaxPrice() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(2L)).thenReturn(UserPriority.VIP);
 
         AICommand command = factory.createCommand(new TestChatCommand(2L, "hi", false), Map.of());
@@ -55,12 +71,12 @@ class DefaultAICommandFactoryTest {
         assertEquals(2, chatCommand.optionalCapabilities().size(), "VIP optional: TOOL_CALLING, WEB");
         assertTrue(chatCommand.optionalCapabilities().contains(ModelCapabilities.TOOL_CALLING));
         assertTrue(chatCommand.optionalCapabilities().contains(ModelCapabilities.WEB));
-        assertEquals(0, chatCommand.body().get(MAX_PRICE));
+        assertEquals(VIP_MAX_PRICE, chatCommand.body().get(MAX_PRICE));
     }
 
     @Test
-    void whenRegular_thenUsesChatOnlyWithoutOverrides() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+    void whenRegular_thenUsesChatOnlyAndMaxPriceFromRouting() {
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(3L)).thenReturn(UserPriority.REGULAR);
 
         AICommand command = factory.createCommand(new TestChatCommand(3L, "hi", false), Map.of());
@@ -69,12 +85,12 @@ class DefaultAICommandFactoryTest {
         ChatAICommand chatCommand = (ChatAICommand) command;
         assertEquals(1, chatCommand.modelCapabilities().size());
         assertTrue(chatCommand.modelCapabilities().contains(ModelCapabilities.CHAT));
-        assertTrue(chatCommand.body().isEmpty());
+        assertEquals(REGULAR_MAX_PRICE, chatCommand.body().get(MAX_PRICE));
     }
 
     @Test
     void whenCommandHasAttachments_thenPassesToChatAICommand() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(4L)).thenReturn(UserPriority.REGULAR);
 
         // Create test attachment
@@ -107,7 +123,7 @@ class DefaultAICommandFactoryTest {
 
     @Test
     void whenCommandHasPdfAttachment_thenPassesToChatAICommandAndIsDocument() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(6L)).thenReturn(UserPriority.REGULAR);
 
         Attachment pdfAttachment = new Attachment(
@@ -137,7 +153,7 @@ class DefaultAICommandFactoryTest {
 
     @Test
     void whenCommandHasNoAttachments_thenEmptyList() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(5L)).thenReturn(UserPriority.REGULAR);
 
         AICommand command = factory.createCommand(new TestChatCommand(5L, "plain text", false), Map.of());
@@ -156,7 +172,7 @@ class DefaultAICommandFactoryTest {
 
     @Test
     void whenPreferredModelInMetadata_thenCreatesFixedModelCommand() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(10L)).thenReturn(UserPriority.REGULAR);
 
         Map<String, String> metadata = new java.util.HashMap<>();
@@ -172,7 +188,7 @@ class DefaultAICommandFactoryTest {
     @Test
     void whenPreferredModelInMetadata_vipUser_stillCreatesFixedModelCommand() {
         // VIP user selects model explicitly — must honour the choice, not fall back to VIP capabilities
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(11L)).thenReturn(UserPriority.VIP);
 
         Map<String, String> metadata = new java.util.HashMap<>();
@@ -186,12 +202,47 @@ class DefaultAICommandFactoryTest {
 
     @Test
     void whenNoPreferredModel_thenCreatesChatAICommand() {
-        DefaultAICommandFactory factory = new DefaultAICommandFactory(userPriorityService, 1000, null);
+        DefaultAICommandFactory factory = factory();
         when(userPriorityService.getUserPriority(12L)).thenReturn(UserPriority.REGULAR);
 
         AICommand command = factory.createCommand(new TestChatCommand(12L, "hello", false), Map.of());
 
         assertInstanceOf(ChatAICommand.class, command);
+    }
+
+    private DefaultAICommandFactory factory() {
+        return new DefaultAICommandFactory(userPriorityService, factoryTestCoreProperties());
+    }
+
+    /**
+     * Minimal {@link CoreCommonProperties} for unit tests (no Spring binding / validation).
+     */
+    private static CoreCommonProperties factoryTestCoreProperties() {
+        CoreCommonProperties p = new CoreCommonProperties();
+        p.setMaxOutputTokens(1000);
+        p.setMaxReasoningTokens(null);
+
+        CoreCommonProperties.PriorityChatRoutingProperties admin = new CoreCommonProperties.PriorityChatRoutingProperties();
+        admin.setMaxPrice(ADMIN_MAX_PRICE);
+        admin.setRequiredCapabilities(List.copyOf(ADMIN_REQUIRED_CAPABILITIES));
+        admin.setOptionalCapabilities(List.copyOf(ADMIN_OPTIONAL_CAPABILITIES));
+
+        CoreCommonProperties.PriorityChatRoutingProperties vip = new CoreCommonProperties.PriorityChatRoutingProperties();
+        vip.setMaxPrice(VIP_MAX_PRICE);
+        vip.setRequiredCapabilities(List.copyOf(VIP_REQUIRED_CAPABILITIES));
+        vip.setOptionalCapabilities(List.copyOf(VIP_OPTIONAL_CAPABILITIES));
+
+        CoreCommonProperties.PriorityChatRoutingProperties regular = new CoreCommonProperties.PriorityChatRoutingProperties();
+        regular.setMaxPrice(REGULAR_MAX_PRICE);
+        regular.setRequiredCapabilities(List.copyOf(REGULAR_REQUIRED_CAPABILITIES));
+        regular.setOptionalCapabilities(List.copyOf(REGULAR_OPTIONAL_CAPABILITIES));
+
+        CoreCommonProperties.ChatRoutingProperties cr = new CoreCommonProperties.ChatRoutingProperties();
+        cr.setAdmin(admin);
+        cr.setVip(vip);
+        cr.setRegular(regular);
+        p.setChatRouting(cr);
+        return p;
     }
 
     private record TestChatCommand(Long userId, String userText, boolean stream) implements IChatCommand<ICommandType> {

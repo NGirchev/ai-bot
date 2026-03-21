@@ -122,7 +122,8 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
 
             List<AIGateway> gateways = aiGatewayRegistry.getSupportedAiGateways(cmd);
             if (gateways.isEmpty()) {
-                sendMessage(chatId, "Model list is not available.");
+                sendMessage(chatId, messageLocalizationService.getMessage(
+                        "telegram.model.unavailable", user.getLanguageCode()));
                 return;
             }
             ModelListAIResponse response = (ModelListAIResponse) gateways.getFirst().generateResponse(cmd);
@@ -130,20 +131,21 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
             List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
             // Auto button first
-            String autoLabel = messageLocalizationService.getMessage("telegram.model.auto", user.getLanguageCode());
+            String lang = user.getLanguageCode();
+            String autoLabel = messageLocalizationService.getMessage("telegram.model.auto", lang);
             InlineKeyboardButton autoBtn = new InlineKeyboardButton(autoLabel);
             autoBtn.setCallbackData(CALLBACK_AUTO);
             keyboard.add(List.of(autoBtn));
 
-            String selectText = messageLocalizationService.getMessage("telegram.model.select", user.getLanguageCode());
+            String selectText = messageLocalizationService.getMessage("telegram.model.select", lang);
             StringBuilder text = new StringBuilder(selectText).append("\n\n");
-            text.append(autoLabel).append(" — automatic selection\n\n");
+            text.append(messageLocalizationService.getMessage("telegram.model.auto.hint", lang, autoLabel)).append("\n\n");
 
             // Model buttons — use numeric index as callback data to stay within Telegram's 64-byte limit
             List<ModelInfo> models = response.models();
             for (int i = 0; i < models.size(); i++) {
                 ModelInfo model = models.get(i);
-                String caps = buildCapabilityLabel(model.capabilities());
+                String caps = buildCapabilityLabel(model.capabilities(), lang);
                 String providerPrefix = model.provider() != null && !model.provider().isEmpty()
                         ? "[" + model.provider() + "] " : "";
                 text.append(i + 1).append(". ").append(providerPrefix).append(model.name());
@@ -165,20 +167,20 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
         }
     }
 
-    private String buildCapabilityLabel(Set<ModelCapabilities> capabilities) {
+    private String buildCapabilityLabel(Set<ModelCapabilities> capabilities, String lang) {
         return capabilities.stream()
                 .filter(DISPLAY_CAPS::contains)
-                .map(this::capabilityToLabel)
+                .map(cap -> capabilityToLabel(cap, lang))
                 .collect(Collectors.joining(", "));
     }
 
-    private String capabilityToLabel(ModelCapabilities cap) {
+    private String capabilityToLabel(ModelCapabilities cap, String lang) {
         return switch (cap) {
-            case VISION -> "Vision";
-            case WEB -> "Web";
-            case TOOL_CALLING -> "Tools";
-            case SUMMARIZATION -> "Summary";
-            case FREE -> "Free";
+            case VISION -> messageLocalizationService.getMessage("telegram.model.cap.vision", lang);
+            case WEB -> messageLocalizationService.getMessage("telegram.model.cap.web", lang);
+            case TOOL_CALLING -> messageLocalizationService.getMessage("telegram.model.cap.tools", lang);
+            case SUMMARIZATION -> messageLocalizationService.getMessage("telegram.model.cap.summary", lang);
+            case FREE -> messageLocalizationService.getMessage("telegram.model.cap.free", lang);
             default -> cap.name();
         };
     }
@@ -195,7 +197,8 @@ public class ModelTelegramCommandHandler extends AbstractTelegramCommandHandlerW
 
         if (CALLBACK_AUTO.equals(callbackData)) {
             userModelPreferenceService.clearPreference(userId);
-            ackCallback(cq.getId(), "✅ Auto mode");
+            ackCallback(cq.getId(), messageLocalizationService.getMessage(
+                    "telegram.model.ack.auto", user.getLanguageCode()));
         } else {
             String modelName = resolveModelName(callbackData, user);
             userModelPreferenceService.setPreferredModel(userId, modelName);

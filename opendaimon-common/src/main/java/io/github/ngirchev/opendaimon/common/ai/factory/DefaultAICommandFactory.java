@@ -13,34 +13,41 @@ import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import org.springframework.util.StringUtils;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.command.IChatCommand;
+import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AttachmentType;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static io.github.ngirchev.opendaimon.common.ai.LlmParamNames.MAX_PRICE;
 import static io.github.ngirchev.opendaimon.common.ai.command.AICommand.LANGUAGE_CODE_FIELD;
 import static io.github.ngirchev.opendaimon.common.ai.command.AICommand.PREFERRED_MODEL_ID_FIELD;
 import static io.github.ngirchev.opendaimon.common.ai.command.AICommand.ROLE_FIELD;
-import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.*;
-
 @Slf4j
 public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICommand<?>> {
 
     private final IUserPriorityService userPriorityService;
-    private final int maxOutputTokens;
-    private final Integer maxReasoningTokens;
     private final ModelDescriptionCache modelDescriptionCache;
+    private final CoreCommonProperties coreCommonProperties;
 
-    public DefaultAICommandFactory(IUserPriorityService userPriorityService, int maxOutputTokens, Integer maxReasoningTokens) {
-        this(userPriorityService, maxOutputTokens, maxReasoningTokens, null);
+    public DefaultAICommandFactory(
+            IUserPriorityService userPriorityService,
+            CoreCommonProperties coreCommonProperties) {
+        this(userPriorityService, null, coreCommonProperties);
     }
 
-    public DefaultAICommandFactory(IUserPriorityService userPriorityService, int maxOutputTokens, Integer maxReasoningTokens, ModelDescriptionCache modelDescriptionCache) {
+    public DefaultAICommandFactory(
+            IUserPriorityService userPriorityService,
+            ModelDescriptionCache modelDescriptionCache,
+            CoreCommonProperties coreCommonProperties) {
         this.userPriorityService = userPriorityService;
-        this.maxOutputTokens = maxOutputTokens;
-        this.maxReasoningTokens = maxReasoningTokens;
         this.modelDescriptionCache = modelDescriptionCache;
+        this.coreCommonProperties = coreCommonProperties;
     }
 
     @Override
@@ -71,24 +78,17 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             metadata.put(AICommand.USER_PRIORITY_FIELD, priority.name());
             Map<String, Object> body = new HashMap<>();
 
-            // Base modelTypes depending on priority
-            Set<ModelCapabilities> optionalModelCapabilities;
-            Set<ModelCapabilities> baseModelCapabilities = switch (priority) {
-                case ADMIN -> {
-                    optionalModelCapabilities = Set.of();
-                    yield Set.of(AUTO);
-                }
-                case VIP -> {
-                    body.put(MAX_PRICE, 0.50);
-                    // TOOL_CALLING and WEB are preferred but not required — fall back to any CHAT model if needed
-                    optionalModelCapabilities = Set.of(TOOL_CALLING, WEB);
-                    yield Set.of(CHAT);
-                }
-                default -> {
-                    optionalModelCapabilities = Set.of();
-                    yield Set.of(CHAT);
-                }
-            };
+            CoreCommonProperties.PriorityChatRoutingProperties tier =
+                    switch (priority) {
+                        case ADMIN -> coreCommonProperties.getChatRouting().getAdmin();
+                        case VIP -> coreCommonProperties.getChatRouting().getVip();
+                        default -> coreCommonProperties.getChatRouting().getRegular();
+                    };
+            if (tier.getMaxPrice() != null) {
+                body.put(MAX_PRICE, tier.getMaxPrice());
+            }
+            Set<ModelCapabilities> optionalModelCapabilities = Set.copyOf(tier.getOptionalCapabilities());
+            Set<ModelCapabilities> baseModelCapabilities = Set.copyOf(tier.getRequiredCapabilities());
 
             // Add VISION dynamically if there are images
             Set<ModelCapabilities> modelCapabilities = addVisionIfNeeded(baseModelCapabilities, attachments);
@@ -103,9 +103,9 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                     // For explicitly selected models only validate VISION — routing capabilities
                     // (TOOL_CALLING, WEB) are used for auto-selection only and must
                     // not be enforced against a model the user has deliberately chosen.
-                    boolean needsVision = modelCapabilities.contains(VISION);
-                    if (needsVision && !fixedModelCapabilities.contains(VISION)) {
-                        throw new UnsupportedModelCapabilityException(fixedModelId, Set.of(VISION));
+                    boolean needsVision = modelCapabilities.contains(ModelCapabilities.VISION);
+                    if (needsVision && !fixedModelCapabilities.contains(ModelCapabilities.VISION)) {
+                        throw new UnsupportedModelCapabilityException(fixedModelId, Set.of(ModelCapabilities.VISION));
                     }
                 } else {
                     fixedModelCapabilities = Set.of();
@@ -114,8 +114,8 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                         fixedModelId,
                         fixedModelCapabilities,
                         0.35,
-                        maxOutputTokens,
-                        maxReasoningTokens,
+                        coreCommonProperties.getMaxOutputTokens(),
+                        coreCommonProperties.getMaxReasoningTokens(),
                         systemRole,
                         chatCommand.userText(),
                         chatCommand.stream(),
@@ -128,8 +128,8 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                         modelCapabilities,
                         optionalModelCapabilities,
                         0.35,
-                        maxOutputTokens,
-                        maxReasoningTokens,
+                        coreCommonProperties.getMaxOutputTokens(),
+                        coreCommonProperties.getMaxReasoningTokens(),
                         systemRole,
                         chatCommand.userText(),
                         chatCommand.stream(),

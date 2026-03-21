@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -45,6 +46,7 @@ import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.CHAT;
  * After fixing buffering the test passes (span >= minSpanMs).
  */
 @Slf4j
+@ActiveProfiles("test")
 @SpringBootTest(
         classes = SpringAIGatewayStreamingRealContextIT.TestConfig.class,
         properties = {"spring.main.banner-mode=off"}

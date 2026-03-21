@@ -23,13 +23,13 @@ In [DefaultAICommandFactory](../opendaimon-common/src/main/java/io/github/ngirch
 
 | Priority   | Capabilities | Extra |
 |-----------|---------------|-------|
-| **ADMIN** | `AUTO` | Single capability: “any suitable model”; in practice resolves to openrouter/auto |
-| **VIP**   | `CHAT`, `TOOL_CALLING`, `WEB` | Request body gets `max_price: 0` (free-only) |
-| **REGULAR** | `CHAT` | Chat only |
+| **ADMIN** | `AUTO` | Single capability: “any suitable model”; in practice resolves to openrouter/auto; OpenRouter `max_price` from `chat-routing.ADMIN` |
+| **VIP**   | `CHAT`, `TOOL_CALLING`, `WEB` | OpenRouter `max_price` from `chat-routing.VIP` (e.g. free-only when set to `0`) |
+| **REGULAR** | `CHAT` | OpenRouter `max_price` from `chat-routing.REGULAR` |
 
 If the request has image attachments, **VISION** is added to the set for all priorities.
 
-The gateway then calls `getCandidatesByCapabilities(capabilities, null)` and receives all registry models that satisfy **all** requested capabilities. There is no separate “free model search by model name”: for VIP we constrain cost via `max_price: 0`; for REGULAR/ADMIN we only filter by capabilities.
+The gateway then calls `getCandidatesByCapabilities(capabilities, null)` and receives all registry models that satisfy **all** requested capabilities. There is no separate “free model search by model name”: cost is constrained per tier via **`max_price` in `open-daimon.common.chat-routing`**, together with the capability set above.
 
 ## 3. Free models: where they come from and how they are filtered
 
@@ -97,7 +97,7 @@ Only free models from the API whose id is in this list (and passes other filters
 ## 5. Summary
 
 - **Tariffs** = user priority: ADMIN / VIP / REGULAR (and BLOCKED), derived from admin flag, whitelist, and channel membership.
-- **Tariff only affects the capability set** (AUTO for ADMIN, CHAT+TOOL_CALLING+WEB for VIP, CHAT for REGULAR); for VIP the request also gets `max_price: 0`.
+- **Tariff affects the capability set** (AUTO for ADMIN, CHAT+TOOL_CALLING+WEB for VIP, CHAT for REGULAR) and **OpenRouter `max_price`** per tier from `open-daimon.common.chat-routing` (ADMIN / VIP / REGULAR).
 - **Free models** = OpenRouter models with zero pricing that pass the `include-model-ids` (and other) filters; one shared set for all users, not a per-model search.
 
 ## Related

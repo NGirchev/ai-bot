@@ -191,8 +191,11 @@ public class TelegramCommandHandlerConfig {
             UserModelPreferenceService userModelPreferenceService,
             CoreCommonProperties coreCommonProperties,
             ObjectProvider<TelegramBot> telegramBotProvider,
-            TelegramProperties telegramProperties) {
-        return new PersistentKeyboardService(userModelPreferenceService, coreCommonProperties, telegramBotProvider, telegramProperties);
+            TelegramProperties telegramProperties,
+            MessageLocalizationService messageLocalizationService,
+            TelegramUserRepository telegramUserRepository) {
+        return new PersistentKeyboardService(userModelPreferenceService, coreCommonProperties, telegramBotProvider,
+                telegramProperties, messageLocalizationService, telegramUserRepository);
     }
 
     @Bean

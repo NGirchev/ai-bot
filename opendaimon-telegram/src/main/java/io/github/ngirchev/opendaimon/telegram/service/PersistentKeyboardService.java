@@ -1,5 +1,6 @@
 package io.github.ngirchev.opendaimon.telegram.service;
 
+import io.github.ngirchev.opendaimon.common.model.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -8,9 +9,11 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.model.ConversationThread;
+import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
 import io.github.ngirchev.opendaimon.telegram.TelegramBot;
 import io.github.ngirchev.opendaimon.telegram.command.TelegramCommand;
 import io.github.ngirchev.opendaimon.telegram.config.TelegramProperties;
+import io.github.ngirchev.opendaimon.telegram.repository.TelegramUserRepository;
 
 import java.util.List;
 
@@ -21,15 +24,21 @@ public class PersistentKeyboardService {
     private final CoreCommonProperties coreCommonProperties;
     private final ObjectProvider<TelegramBot> telegramBotProvider;
     private final TelegramProperties telegramProperties;
+    private final MessageLocalizationService messageLocalizationService;
+    private final TelegramUserRepository telegramUserRepository;
 
     public PersistentKeyboardService(UserModelPreferenceService userModelPreferenceService,
                                      CoreCommonProperties coreCommonProperties,
                                      ObjectProvider<TelegramBot> telegramBotProvider,
-                                     TelegramProperties telegramProperties) {
+                                     TelegramProperties telegramProperties,
+                                     MessageLocalizationService messageLocalizationService,
+                                     TelegramUserRepository telegramUserRepository) {
         this.userModelPreferenceService = userModelPreferenceService;
         this.coreCommonProperties = coreCommonProperties;
         this.telegramBotProvider = telegramBotProvider;
         this.telegramProperties = telegramProperties;
+        this.messageLocalizationService = messageLocalizationService;
+        this.telegramUserRepository = telegramUserRepository;
     }
 
     /**
@@ -73,9 +82,13 @@ public class PersistentKeyboardService {
     }
 
     /**
-     * Builds the persistent keyboard markup without sending it.
+     * Builds the reply keyboard markup without sending it.
      * Keyboard button labels always reflect the stored DB preference.
      * Returns null if model-enabled=false.
+     * <p>
+     * {@code is_persistent} is intentionally left at the API default ({@code false}): {@code true} makes some
+     * Telegram Android clients keep the custom keyboard in a state where the user cannot return to the
+     * normal text keyboard via the standard back control.
      */
     public ReplyKeyboardMarkup buildKeyboardMarkup(Long userId, ConversationThread thread) {
         if (!telegramProperties.getCommands().isModelEnabled()) {
@@ -90,14 +103,17 @@ public class PersistentKeyboardService {
 
         ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup(List.of(row));
         markup.setResizeKeyboard(true);
-        markup.setIsPersistent(true);
         return markup;
     }
 
     private String buildModelLabel(Long userId) {
+        String lang = telegramUserRepository.findById(userId)
+                .map(User::getLanguageCode)
+                .orElse(null);
         return userModelPreferenceService.getPreferredModel(userId)
                 .map(m -> TelegramCommand.MODEL_KEYBOARD_PREFIX + " " + m)
-                .orElse(TelegramCommand.MODEL_KEYBOARD_PREFIX + " Auto");
+                .orElse(TelegramCommand.MODEL_KEYBOARD_PREFIX + " "
+                        + messageLocalizationService.getMessage("telegram.model.auto", lang));
     }
 
     private String buildContextLabel(ConversationThread thread) {

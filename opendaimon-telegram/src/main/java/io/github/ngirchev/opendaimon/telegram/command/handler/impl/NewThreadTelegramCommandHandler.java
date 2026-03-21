@@ -81,11 +81,12 @@ public class NewThreadTelegramCommandHandler extends AbstractTelegramCommandHand
             keyboardService.sendKeyboard(command.telegramId(), user.getId(), newThread);
         }
 
-        // Build message depending on whether there was a previous conversation
-        String responseMessage = "✅ New conversation started!\n\n" +
-            "Thread ID: `" + newThread.getThreadKey().substring(0, 8) + "...`";
+        String lang = user.getLanguageCode();
+        String threadPreview = newThread.getThreadKey().substring(0, 8) + "...";
+        String responseMessage = messageLocalizationService.getMessage(
+                "telegram.newthread.body", lang, threadPreview);
         if (hadPreviousThread) {
-            responseMessage += "\n\nPrevious conversation history was saved.";
+            responseMessage += messageLocalizationService.getMessage("telegram.newthread.previous.saved", lang);
         }
 
         return responseMessage;

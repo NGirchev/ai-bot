@@ -119,8 +119,8 @@ class TelegramMockGatewayIT {
                 CoreCommonProperties coreCommonProperties) {
             return new DefaultAICommandFactory(
                     userPriorityService,
-                    coreCommonProperties.getMaxOutputTokens(),
-                    coreCommonProperties.getMaxReasoningTokens());
+                    null,
+                    coreCommonProperties);
         }
 
         @Bean
@@ -313,10 +313,13 @@ class TelegramMockGatewayIT {
                 UserModelPreferenceService userModelPreferenceService,
                 CoreCommonProperties coreCommonProperties,
                 ObjectProvider<TelegramBot> telegramBotProvider,
-                TelegramProperties telegramProperties
+                TelegramProperties telegramProperties,
+                MessageLocalizationService messageLocalizationService,
+                TelegramUserRepository telegramUserRepository
         ) {
             return new PersistentKeyboardService(
-                    userModelPreferenceService, coreCommonProperties, telegramBotProvider, telegramProperties);
+                    userModelPreferenceService, coreCommonProperties, telegramBotProvider, telegramProperties,
+                    messageLocalizationService, telegramUserRepository);
         }
 
         @Bean

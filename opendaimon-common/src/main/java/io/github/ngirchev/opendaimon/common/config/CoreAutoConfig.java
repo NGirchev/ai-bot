@@ -178,9 +178,8 @@ public class CoreAutoConfig {
             ObjectProvider<ModelDescriptionCache> modelDescriptionCacheProvider) {
         return new DefaultAICommandFactory(
                 userPriorityService,
-                coreCommonProperties.getMaxOutputTokens(),
-                coreCommonProperties.getMaxReasoningTokens(),
-                modelDescriptionCacheProvider.getIfAvailable());
+                modelDescriptionCacheProvider.getIfAvailable(),
+                coreCommonProperties);
     }
 
     @Bean

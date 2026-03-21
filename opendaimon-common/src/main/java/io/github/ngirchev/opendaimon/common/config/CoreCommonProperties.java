@@ -1,8 +1,11 @@
 package io.github.ngirchev.opendaimon.common.config;
 
+import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
@@ -10,6 +13,8 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.validation.annotation.Validated;
+
+import java.util.List;
 
 @ConfigurationProperties(prefix = "open-daimon.common")
 @Validated
@@ -67,6 +72,30 @@ public class CoreCommonProperties {
     @Valid
     @NestedConfigurationProperty
     private AdminProperties admin = new AdminProperties();
+
+    /**
+     * AI command routing by user priority. YAML uses {@code ADMIN} / {@code VIP} / {@code REGULAR} keys
+     * (same style as {@code open-daimon.telegram.access}); Java fields are {@code admin}, {@code vip}, {@code regular}.
+     */
+    @Valid
+    @NotNull(message = "chatRouting is required")
+    @NestedConfigurationProperty
+    private ChatRoutingProperties chatRouting;
+
+    @AssertTrue(message = "chatRouting.admin.maxPrice is required")
+    public boolean isAdminChatRoutingMaxPricePresent() {
+        return chatRouting != null && chatRouting.getAdmin() != null && chatRouting.getAdmin().getMaxPrice() != null;
+    }
+
+    @AssertTrue(message = "chatRouting.vip.maxPrice is required")
+    public boolean isVipChatRoutingMaxPricePresent() {
+        return chatRouting != null && chatRouting.getVip() != null && chatRouting.getVip().getMaxPrice() != null;
+    }
+
+    @AssertTrue(message = "chatRouting.regular.maxPrice is required")
+    public boolean isRegularChatRoutingMaxPricePresent() {
+        return chatRouting != null && chatRouting.getRegular() != null && chatRouting.getRegular().getMaxPrice() != null;
+    }
 
     @Getter
     @Setter
@@ -126,5 +155,61 @@ public class CoreCommonProperties {
          * Admin REST email (optional).
          */
         private String restEmail;
+    }
+
+    /**
+     * Nested {@code ADMIN} / {@code VIP} / {@code REGULAR} blocks under {@code open-daimon.common.chat-routing}.
+     */
+    @Getter
+    @Setter
+    @Validated
+    public static class ChatRoutingProperties {
+
+        @NotNull(message = "chatRouting.admin is required")
+        @Valid
+        @NestedConfigurationProperty
+        private PriorityChatRoutingProperties admin;
+
+        @NotNull(message = "chatRouting.vip is required")
+        @Valid
+        @NestedConfigurationProperty
+        private PriorityChatRoutingProperties vip;
+
+        @NotNull(message = "chatRouting.regular is required")
+        @Valid
+        @NestedConfigurationProperty
+        private PriorityChatRoutingProperties regular;
+    }
+
+    /**
+     * Routing for one user-priority tier in {@link io.github.ngirchev.opendaimon.common.ai.factory.DefaultAICommandFactory}.
+     * <ul>
+     *   <li>{@code max-price}: OpenRouter {@code max_price} for ADMIN, VIP, and REGULAR (required for all tiers).</li>
+     *   <li>{@code required-capabilities} / {@code optional-capabilities}: model selection (VIP typically {@code CHAT} required).</li>
+     * </ul>
+     */
+    @Getter
+    @Setter
+    @Validated
+    public static class PriorityChatRoutingProperties {
+
+        /**
+         * When non-null, sent as {@code max_price} in the request extra body (OpenRouter).
+         */
+        @DecimalMin(value = "0.0", inclusive = true, message = "maxPrice must be >= 0")
+        private Double maxPrice;
+
+        /**
+         * Required capabilities for model selection.
+         */
+        @NotNull(message = "requiredCapabilities is required")
+        @NotEmpty(message = "requiredCapabilities must not be empty")
+        private List<ModelCapabilities> requiredCapabilities;
+
+        /**
+         * Preferred but non-required capabilities. Use an empty list for none.
+         */
+        @NotNull(message = "optionalCapabilities is required")
+        private List<ModelCapabilities> optionalCapabilities;
     }
 }
