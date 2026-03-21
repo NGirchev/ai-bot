@@ -257,7 +257,7 @@ class TelegramBotTest {
         TelegramBot spyBot = spy(bot);
         doReturn(null).when(spyBot).execute(any(SetMyCommands.class));
 
-        spyBot.setMyCommands(commands);
+        spyBot.setMyCommands(commands, (String) null);
 
         verify(spyBot).execute(any(SetMyCommands.class));
     }

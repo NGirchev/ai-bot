@@ -1,9 +1,12 @@
 package io.github.ngirchev.opendaimon.ai.springai.retry;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
+
+import io.github.ngirchev.opendaimon.bulkhead.model.UserPriority;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,6 +72,7 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         Set<String> openRouterIds = fetched.stream().map(OpenRouterModelEntry::id).filter(StringUtils::hasText).collect(Collectors.toSet());
 
         // Remove yml OPENAI models not present in OpenRouter response
+        List<String> removedYmlModels = new ArrayList<>();
         for (String name : new ArrayList<>(modelsByName.keySet())) {
             if (!ymlModelNames.contains(name)) {
                 continue;
@@ -77,8 +81,16 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             if (config != null && config.getProviderType() == SpringAIModelConfig.ProviderType.OPENAI
                     && !openRouterIds.contains(name)) {
                 modelsByName.remove(name);
-                log.info("Removed from registry (not in OpenRouter): {}", name);
+                removedYmlModels.add(name);
             }
+        }
+        if (!removedYmlModels.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("yml models removed from registry (not found in OpenRouter API), count=").append(removedYmlModels.size()).append(":\n");
+            for (String name : removedYmlModels) {
+                sb.append("  - ").append(name).append("\n");
+            }
+            log.warn(sb.toString());
         }
 
         // Free models from API and after filters
@@ -87,6 +99,7 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         Set<String> keysBeforeAdd = new HashSet<>(modelsByName.keySet());
 
         // Add free models from response that are not yet in registry
+        long now = System.currentTimeMillis();
         for (OpenRouterModelEntry entry : fetched) {
             if (!entry.free() || !freeFiltered.contains(entry.id())) {
                 continue;
@@ -94,18 +107,77 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             if (modelsByName.containsKey(entry.id())) {
                 continue;
             }
+            ModelStats existingStats = statsByModelId.get(entry.id());
+            if (existingStats != null && existingStats.cooldownUntilEpochMs > now) {
+                log.debug("OpenRouter free model skipped (cooldown active): model={}, cooldownRemainingMs={}",
+                        entry.id(), existingStats.cooldownUntilEpochMs - now);
+                continue;
+            }
             Set<ModelCapabilities> caps = OpenRouterModelCapabilitiesMapper.fromOpenRouterModel(entry.node(), true);
-            SpringAIModelConfig config = new SpringAIModelConfig();
-            config.setName(entry.id());
-            config.setCapabilities(new ArrayList<>(caps));
-            config.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
-            config.setPriority(OPENROUTER_FREE_PRIORITY);
+            SpringAIModelConfig config = getSpringAIModelConfig(entry, caps);
             modelsByName.put(entry.id(), config);
             log.debug("Added OpenRouter free model to registry: {}", entry.id());
         }
 
         logExcludedAndAlreadyPresent(freeFromApi, freeFiltered, keysBeforeAdd);
         logRegistrySnapshot("after OpenRouter sync");
+    }
+
+    private SpringAIModelConfig getSpringAIModelConfig(OpenRouterModelEntry entry, Set<ModelCapabilities> caps) {
+        SpringAIModelConfig config = new SpringAIModelConfig();
+        config.setName(entry.id());
+        config.setCapabilities(caps);
+        config.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
+        config.setPriority(OPENROUTER_FREE_PRIORITY);
+        List<UserPriority> allowedRoles = computeAllowedRoles(entry.id());
+        if (allowedRoles != null) {
+            config.setAllowedRoles(allowedRoles);
+        }
+        return config;
+    }
+
+    /**
+     * Determines which roles are allowed to use the given model based on whitelist entries.
+     * Returns null if all roles are allowed (no whitelist, or a matching entry has no role restriction).
+     */
+    private List<UserPriority> computeAllowedRoles(String modelId) {
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterProperties.getWhitelist();
+        if (whitelists == null || whitelists.isEmpty()) {
+            return null;
+        }
+        List<UserPriority> collected = new ArrayList<>();
+        for (OpenRouterModelsProperties.Whitelist wl : whitelists) {
+            if (!matchesWhitelist(modelId, wl)) {
+                continue;
+            }
+            if (wl.getRoles() == null || wl.getRoles().isEmpty()) {
+                return null;
+            }
+            collected.addAll(wl.getRoles());
+        }
+        if (collected.isEmpty()) {
+            return null;
+        }
+        return collected.stream().distinct().toList();
+    }
+
+    /**
+     * Returns true if modelId is matched by the given whitelist entry.
+     * A whitelist with no include rules matches everything.
+     */
+    private static boolean matchesWhitelist(String modelId, OpenRouterModelsProperties.Whitelist wl) {
+        boolean hasIncludeIds = wl.getIncludeModelIds() != null && !wl.getIncludeModelIds().isEmpty();
+        boolean hasIncludeContains = wl.getIncludeContains() != null && !wl.getIncludeContains().isEmpty();
+        if (!hasIncludeIds && !hasIncludeContains) {
+            return true;
+        }
+        if (hasIncludeIds && wl.getIncludeModelIds().contains(modelId)) {
+            return true;
+        }
+        if (hasIncludeContains && wl.getIncludeContains().stream().anyMatch(modelId::contains)) {
+            return true;
+        }
+        return false;
     }
 
     private static String normalizeOpenRouterBaseUrl(String url) {
@@ -157,26 +229,22 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
      * Explains why model was excluded by filters (which filter excluded it).
      */
     private String explainExcludedByFilter(String modelId) {
-        OpenRouterModelsProperties.Filters f = openRouterProperties.getFilters();
-        if (f == null) {
-            return "no filters configured";
-        }
-        if (f.getIncludeModelIds() != null && !f.getIncludeModelIds().isEmpty()) {
-            if (!f.getIncludeModelIds().contains(modelId)) {
-                return "not in include-model-ids (allowlist)";
+        OpenRouterModelsProperties.Blacklist blacklist = openRouterProperties.getBlacklist();
+        if (blacklist != null) {
+            if (blacklist.getExcludeModelIds() != null && blacklist.getExcludeModelIds().contains(modelId)) {
+                return "in blacklist.exclude-model-ids";
+            }
+            if (blacklist.getExcludeContains() != null && !blacklist.getExcludeContains().isEmpty()) {
+                if (blacklist.getExcludeContains().stream().anyMatch(modelId::contains)) {
+                    return "matches blacklist.exclude-contains";
+                }
             }
         }
-        if (f.getIncludeContains() != null && !f.getIncludeContains().isEmpty()) {
-            if (f.getIncludeContains().stream().noneMatch(modelId::contains)) {
-                return "does not match include-contains (allowlist by substring)";
-            }
-        }
-        if (f.getExcludeModelIds() != null && f.getExcludeModelIds().contains(modelId)) {
-            return "in exclude-model-ids (denylist)";
-        }
-        if (f.getExcludeContains() != null && !f.getExcludeContains().isEmpty()) {
-            if (f.getExcludeContains().stream().anyMatch(modelId::contains)) {
-                return "matches exclude-contains (denylist by substring)";
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterProperties.getWhitelist();
+        if (whitelists != null && !whitelists.isEmpty()) {
+            boolean matchesAny = whitelists.stream().anyMatch(wl -> matchesWhitelist(modelId, wl));
+            if (!matchesAny) {
+                return "not matched by any whitelist entry";
             }
         }
         return "filter step removed it (check filter order)";
@@ -198,10 +266,14 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             String caps = c.getCapabilities() != null
                     ? c.getCapabilities().stream().map(Enum::name).sorted().toList().toString()
                     : "[]";
+            String roles = (c.getAllowedRoles() == null || c.getAllowedRoles().isEmpty())
+                    ? "ALL"
+                    : c.getAllowedRoles().stream().map(Enum::name).toList().toString();
             sb.append("  ").append(c.getName())
                     .append(" | capabilities=").append(caps)
                     .append(" | priority=").append(c.getPriority())
                     .append(" | provider=").append(c.getProviderType())
+                    .append(" | roles=").append(roles)
                     .append("\n");
         }
         log.info(sb.toString());
@@ -211,29 +283,30 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
         if (modelIds == null || modelIds.isEmpty()) {
             return modelIds;
         }
-        OpenRouterModelsProperties.Filters filters = openRouterProperties.getFilters();
-        if (filters == null) {
-            return modelIds;
-        }
         List<String> result = new ArrayList<>(modelIds);
-        if (filters.getIncludeModelIds() != null && !filters.getIncludeModelIds().isEmpty()) {
-            Set<String> allow = new HashSet<>(filters.getIncludeModelIds());
-            result = result.stream().filter(allow::contains).toList();
+
+        // 1. Apply blacklist first
+        OpenRouterModelsProperties.Blacklist blacklist = openRouterProperties.getBlacklist();
+        if (blacklist != null) {
+            if (blacklist.getExcludeModelIds() != null && !blacklist.getExcludeModelIds().isEmpty()) {
+                Set<String> deny = new HashSet<>(blacklist.getExcludeModelIds());
+                result = result.stream().filter(id -> !deny.contains(id)).toList();
+            }
+            if (blacklist.getExcludeContains() != null && !blacklist.getExcludeContains().isEmpty()) {
+                result = result.stream()
+                        .filter(id -> blacklist.getExcludeContains().stream().noneMatch(id::contains))
+                        .toList();
+            }
         }
-        if (filters.getIncludeContains() != null && !filters.getIncludeContains().isEmpty()) {
+
+        // 2. Apply whitelist: keep only models matched by at least one whitelist entry
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterProperties.getWhitelist();
+        if (whitelists != null && !whitelists.isEmpty()) {
             result = result.stream()
-                    .filter(id -> filters.getIncludeContains().stream().anyMatch(id::contains))
+                    .filter(id -> whitelists.stream().anyMatch(wl -> matchesWhitelist(id, wl)))
                     .toList();
         }
-        if (filters.getExcludeModelIds() != null && !filters.getExcludeModelIds().isEmpty()) {
-            Set<String> deny = new HashSet<>(filters.getExcludeModelIds());
-            result = result.stream().filter(id -> !deny.contains(id)).toList();
-        }
-        if (filters.getExcludeContains() != null && !filters.getExcludeContains().isEmpty()) {
-            result = result.stream()
-                    .filter(id -> filters.getExcludeContains().stream().noneMatch(id::contains))
-                    .toList();
-        }
+
         return result;
     }
 
@@ -241,17 +314,28 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
      * Candidates by capabilities, with optional preferred name (first in list).
      */
     public List<SpringAIModelConfig> getCandidatesByCapabilities(Set<ModelCapabilities> required, String preferredModelId) {
+        return getCandidatesByCapabilities(required, preferredModelId, null);
+    }
+
+    /**
+     * Candidates by capabilities and user role, with optional preferred name (first in list).
+     * If userPriority is null — role filtering is skipped.
+     */
+    public List<SpringAIModelConfig> getCandidatesByCapabilities(Set<ModelCapabilities> required, String preferredModelId, UserPriority userPriority) {
         if (required == null || required.isEmpty()) {
             return List.of();
         }
         List<SpringAIModelConfig> candidates = new ArrayList<>();
         for (SpringAIModelConfig model : modelsByName.values()) {
-            List<ModelCapabilities> caps = model.getCapabilities();
+            Set<ModelCapabilities> caps = model.getCapabilities();
             if (caps == null || caps.isEmpty()) {
                 continue;
             }
-            Integer maxIndex = findMaxIndexForAllTypes(caps, required);
+            Integer maxIndex = findMaxIndexForAllTypes(new ArrayList<>(caps), required);
             if (maxIndex == null) {
+                continue;
+            }
+            if (userPriority != null && !model.isAllowedForRole(userPriority)) {
                 continue;
             }
             candidates.add(model);
@@ -265,7 +349,7 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
                 .comparing(SpringAIModelConfig::getPriority)
                 .thenComparing(SpringAIModelConfig::getName);
         candidates.sort(
-                Comparator.<SpringAIModelConfig>comparingInt(m -> findMaxIndexForAllTypes(m.getCapabilities(), required))
+                Comparator.<SpringAIModelConfig>comparingInt(m -> findMaxIndexForAllTypes(new ArrayList<>(m.getCapabilities()), required))
                         .thenComparing(byPriority)
                         .thenComparing((SpringAIModelConfig m) -> -score(m.getName(), now))
                         .thenComparing(SpringAIModelConfig::getName)
@@ -277,10 +361,22 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
                     .findFirst();
             if (preferred.isPresent()) {
                 candidates.remove(preferred.get());
-                candidates.add(0, preferred.get());
+                candidates.addFirst(preferred.get());
             }
         }
         return List.copyOf(candidates);
+    }
+
+    /**
+     * All models visible to the given user role, sorted by priority then name.
+     * If userPriority is null — role filtering is skipped.
+     */
+    public List<SpringAIModelConfig> getAllModels(UserPriority userPriority) {
+        return modelsByName.values().stream()
+                .filter(m -> userPriority == null || m.isAllowedForRole(userPriority))
+                .sorted(Comparator.comparing(SpringAIModelConfig::getPriority)
+                        .thenComparing(SpringAIModelConfig::getName))
+                .toList();
     }
 
     public Optional<SpringAIModelConfig> getByModelName(String name) {
@@ -288,6 +384,14 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             return Optional.empty();
         }
         return Optional.ofNullable(modelsByName.get(name));
+    }
+
+    public Set<ModelCapabilities> getCapabilities(String modelId) {
+        SpringAIModelConfig config = modelsByName.get(modelId);
+        if (config == null || config.getCapabilities() == null) {
+            return Set.of();
+        }
+        return new LinkedHashSet<>(config.getCapabilities());
     }
 
     private static Integer findMaxIndexForAllTypes(List<ModelCapabilities> capabilities, Set<ModelCapabilities> requestedTypes) {
@@ -370,12 +474,41 @@ public class SpringAIModelRegistry implements OpenRouterRotationRegistry {
             long cooldownMs = 0;
             if (status == 429 && ranking.getCooldown429() != null) {
                 cooldownMs = ranking.getCooldown429().toMillis();
+            } else if (status == 404 && ranking.getCooldown404() != null) {
+                cooldownMs = ranking.getCooldown404().toMillis();
             } else if (status >= 500 && status <= 599 && ranking.getCooldown5xx() != null) {
                 cooldownMs = ranking.getCooldown5xx().toMillis();
             }
             if (cooldownMs > 0) {
                 stats.cooldownUntilEpochMs = System.currentTimeMillis() + cooldownMs;
+                log.info("OpenRouter model cooldown: model={}, status={}, cooldownMs={}", modelId, status, cooldownMs);
             }
+        }
+        if (status == 404) {
+            if (!ymlModelNames.contains(modelId)) {
+                modelsByName.remove(modelId);
+                log.warn("OpenRouter model removed from registry on 404: model={}", modelId);
+            }
+            logModelDetailsFromOpenRouter(modelId);
+        }
+    }
+
+    private void logModelDetailsFromOpenRouter(String modelId) {
+        if (openRouterClient == null || openRouterProperties == null || openRouterProperties.getApi() == null) {
+            return;
+        }
+        try {
+            String baseUrl = normalizeOpenRouterBaseUrl(openRouterProperties.getApi().getUrl().trim());
+            String apiKey = openRouterProperties.getApi().getKey();
+            JsonNode node = openRouterClient.fetchModelDetails(baseUrl, apiKey, modelId);
+            if (node == null || node.isMissingNode() || node.isNull()) {
+                log.warn("OpenRouter 404 diagnostic: model={} not found via GET /v1/models/{}", modelId, modelId);
+            } else {
+                log.warn("OpenRouter 404 diagnostic: model={} exists in API. architecture={}, supported_parameters={}",
+                        modelId, node.path("architecture"), node.path("supported_parameters"));
+            }
+        } catch (Exception e) {
+            log.warn("OpenRouter 404 diagnostic fetch failed for model={}: {}", modelId, e.getMessage());
         }
     }
 

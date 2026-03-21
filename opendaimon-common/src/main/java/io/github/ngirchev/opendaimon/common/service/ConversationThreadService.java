@@ -74,28 +74,33 @@ public class ConversationThreadService {
     }
     
     /**
-     * Updates thread counters from all its messages.
+     * Updates thread counters from its messages.
+     * When summarization has occurred, only tokens from messages after the summarization
+     * point are counted — this keeps the context usage indicator accurate.
      * Called after saving Message.
      */
     public void updateThreadCounters(ConversationThread thread) {
-        // Count total messages and tokens from all Messages
         Integer messageCount = messageRepository.countByThread(thread);
         int totalMessages = messageCount != null ? messageCount : 0;
-        
-        // Sum tokens from all Messages
-        List<OpenDaimonMessage> messages = messageRepository
-            .findByThreadOrderBySequenceNumberAsc(thread);
+
+        // After summarization only count tokens for new messages (sequenceNumber > messagesAtLastSummarization)
+        // so that the context-usage indicator resets to 0 after context compaction.
+        Integer messagesAtLastSummarization = thread.getMessagesAtLastSummarization();
+        List<OpenDaimonMessage> messages = messagesAtLastSummarization != null
+                ? messageRepository.findByThreadAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(
+                        thread, messagesAtLastSummarization)
+                : messageRepository.findByThreadOrderBySequenceNumberAsc(thread);
         long totalTokens = messages.stream()
             .mapToLong(m -> m.getTokenCount() != null ? m.getTokenCount() : 0)
             .sum();
-        
+
         thread.setTotalMessages(totalMessages);
         thread.setTotalTokens(totalTokens);
         thread.setLastActivityAt(OffsetDateTime.now());
         threadRepository.save(thread);
-        
-        log.debug("Updated thread {} counters: {} messages, {} tokens", 
-            thread.getThreadKey(), totalMessages, totalTokens);
+
+        log.debug("Updated thread {} counters: {} messages, {} tokens (from sequence > {})",
+            thread.getThreadKey(), totalMessages, totalTokens, messagesAtLastSummarization);
     }
     
     /**
@@ -139,6 +144,16 @@ public class ConversationThreadService {
             thread.getThreadKey(), thread.getMessagesAtLastSummarization());
     }
     
+    /**
+     * Returns the current active thread for the user without creating a new one.
+     * Use this when you need the thread for display purposes only.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ConversationThread> findCurrentThread(User user) {
+        return threadRepository.findMostRecentActiveThread(user)
+            .filter(this::isThreadStillActive);
+    }
+
     /**
      * Finds thread by key.
      */

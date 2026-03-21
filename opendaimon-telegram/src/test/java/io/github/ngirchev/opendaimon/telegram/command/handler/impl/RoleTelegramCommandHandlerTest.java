@@ -142,7 +142,7 @@ class RoleTelegramCommandHandlerTest {
 
         verify(telegramUserService).getOrCreateUser(from);
         verify(telegramUserService).getOrCreateAssistantRole(any(TelegramUser.class), eq("You are a helpful assistant."));
-        verify(telegramBot, atLeast(1)).sendMessage(eq(CHAT_ID), anyString(), any());
+        verify(telegramBot, atLeast(1)).sendMessage(eq(CHAT_ID), anyString(), any(), any());
     }
 
     @Test
@@ -160,13 +160,14 @@ class RoleTelegramCommandHandlerTest {
         when(telegramUserService.updateAssistantRole(eq(from), eq("New role text"))).thenReturn(telegramUser);
 
         TelegramCommand command = new TelegramCommand(200L, CHAT_ID, new TelegramCommandType(TelegramCommand.ROLE), update, "New role text");
+        command.languageCode("en");
 
         assertNull(handler.handleInner(command));
 
         verify(telegramUserService).getOrCreateUser(from);
         verify(telegramUserService).updateAssistantRole(from, "New role text");
         verify(telegramBot).clearStatus(200L);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Assistant role updated successfully"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Assistant role updated successfully"), any(), any());
     }
 
     @Test

@@ -7,6 +7,7 @@ import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
 import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
 import io.github.ngirchev.opendaimon.bulkhead.exception.AccessDeniedException;
+import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.exception.DocumentContentNotExtractableException;
 import io.github.ngirchev.opendaimon.common.exception.UserMessageTooLongException;
 import io.github.ngirchev.opendaimon.common.model.OpenDaimonMessage;
@@ -25,7 +26,6 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.context.MessageSource;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import reactor.core.publisher.Flux;
@@ -41,6 +41,8 @@ import io.github.ngirchev.opendaimon.telegram.service.TelegramMessageService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserSessionService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
+import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 
 import java.util.List;
 import java.util.Map;
@@ -78,6 +80,10 @@ class MessageTelegramCommandHandlerTest {
     @Mock
     private AICommandFactoryRegistry aiCommandFactoryRegistry;
     @Mock
+    private UserModelPreferenceService userModelPreferenceService;
+    @Mock
+    private PersistentKeyboardService persistentKeyboardService;
+    @Mock
     private io.github.ngirchev.opendaimon.common.service.AIGateway aiGateway;
 
     private MessageLocalizationService messageLocalizationService;
@@ -86,10 +92,9 @@ class MessageTelegramCommandHandlerTest {
 
     @BeforeEach
     void setUp() {
-        MessageSource messageSource = new ReloadableResourceBundleMessageSource();
-        ((ReloadableResourceBundleMessageSource) messageSource).setBasenames(
-                "classpath:messages/common", "classpath:messages/telegram");
-        ((ReloadableResourceBundleMessageSource) messageSource).setDefaultEncoding("UTF-8");
+        ReloadableResourceBundleMessageSource messageSource = new ReloadableResourceBundleMessageSource();
+        messageSource.setBasenames("classpath:messages/common", "classpath:messages/telegram");
+        messageSource.setDefaultEncoding("UTF-8");
         messageLocalizationService = new MessageLocalizationService(messageSource);
 
         telegramProperties = new TelegramProperties();
@@ -102,7 +107,8 @@ class MessageTelegramCommandHandlerTest {
 
         handler = new MessageTelegramCommandHandler(botProvider, typingIndicatorService, messageLocalizationService,
                 telegramUserService, telegramUserSessionService, telegramMessageService, aiGatewayRegistry,
-                messageService, aiCommandFactoryRegistry, telegramProperties);
+                messageService, aiCommandFactoryRegistry, telegramProperties, userModelPreferenceService,
+                persistentKeyboardService);
     }
 
     @Test
@@ -118,8 +124,7 @@ class MessageTelegramCommandHandlerTest {
 
     @Test
     void canHandle_whenNotTelegramCommand_thenFalse() {
-        io.github.ngirchev.opendaimon.common.command.ICommand<io.github.ngirchev.opendaimon.telegram.command.TelegramCommandType> other =
-                mock(io.github.ngirchev.opendaimon.common.command.ICommand.class);
+        ICommand<TelegramCommandType> other = mock(ICommand.class);
         assertFalse(handler.canHandle(other));
     }
 
@@ -311,7 +316,7 @@ class MessageTelegramCommandHandlerTest {
 
         verify(telegramMessageService).saveAssistantMessage(eq(telegramUser), eq("Hi there!"), anyString(), eq("You are helpful."), anyInt(), any());
         verify(messageService).updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Hi there!"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Hi there!"), any(), any());
     }
 
     @Test
@@ -401,7 +406,7 @@ class MessageTelegramCommandHandlerTest {
         when(aiGateway.generateResponse(aiCommand)).thenReturn(aiResponse);
 
         when(telegramMessageService.saveAssistantMessage(any(), any(), anyString(), any(), anyInt(), any())).thenReturn(new OpenDaimonMessage());
-        doThrow(new org.telegram.telegrambots.meta.exceptions.TelegramApiException("send failed")).when(telegramBot).sendMessage(anyLong(), anyString(), any());
+        doThrow(new org.telegram.telegrambots.meta.exceptions.TelegramApiException("send failed")).when(telegramBot).sendMessage(anyLong(), anyString(), any(), any());
 
         TelegramCommand command = new TelegramCommand(200L, CHAT_ID, new TelegramCommandType(TelegramCommand.MESSAGE), update, "Hello");
         command.languageCode("en");
@@ -515,7 +520,7 @@ class MessageTelegramCommandHandlerTest {
         verify(aiGateway, times(2)).generateResponse(aiCommand);
         verify(telegramMessageService).saveAssistantMessage(eq(telegramUser), eq("Retry success"), anyString(), eq("Role"), anyInt(), any());
         verify(messageService).updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Retry success"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Retry success"), any(), any());
         verify(telegramBot, never()).sendErrorMessage(anyLong(), anyString(), any());
     }
 
@@ -566,7 +571,7 @@ class MessageTelegramCommandHandlerTest {
 
         verify(telegramMessageService).saveAssistantMessage(eq(telegramUser), eq("Streamed reply"), anyString(), eq("Role"), anyInt(), any());
         verify(messageService).updateMessageStatus(assistantMessage, ResponseStatus.SUCCESS);
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Streamed reply"), any());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Streamed reply"), any(), any());
     }
 
     private static ChatResponse createChatResponse(String text) {

@@ -60,10 +60,10 @@ Retry and OpenRouter model rotation are implemented via the AOP aspect `OpenRout
 
 ## Candidates and why retry may not work
 
-- Candidates are determined by `command.modelCapabilities()` from the command factory. The project uses **DefaultAICommandFactory** (not ConversationHistoryAICommandFactory).
+- Candidates are determined by `command.modelCapabilities()` from the command factory (`DefaultAICommandFactory`).
 - **ADMIN:** capabilities = `{AUTO}`. In the registry only `openrouter/auto` has AUTO → one candidate → on stream error retry is not possible (no "next" model).
 - **REGULAR:** `{CHAT}`. Eligible: openrouter/auto, gemma3:1b, free models with CHAT → several candidates, retry possible.
-- **VIP:** `{CHAT, MODERATION, TOOL_CALLING, WEB}` — several models may match, retry possible.
+- **VIP:** `{CHAT, TOOL_CALLING, WEB}` — several models may match, retry possible.
 
 If retry is needed for AUTO, the aspect could add a fallback: when the only candidate has AUTO, additionally request candidates by `ModelCapabilities.CHAT` and merge lists (see plan in .cursor/plans if needed).
 
@@ -87,6 +87,10 @@ open-daimon:
         max-attempts: 3   # max number of candidates (attempts); default in code is 2
         models:
           enabled: true
+          filters:
+            # Optional: roles allowed to use synced OpenRouter free models. Omit or empty = all roles (ALL).
+            # allowed-roles: [ ADMIN, VIP, REGULAR ]
+            include-model-ids: [ ... ]
           # ...
 ```
 

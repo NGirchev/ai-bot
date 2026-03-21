@@ -9,6 +9,7 @@ import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AssistantRole;
 import io.github.ngirchev.opendaimon.common.model.OpenDaimonMessage;
 import io.github.ngirchev.opendaimon.common.model.RequestType;
+import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
 import io.github.ngirchev.opendaimon.common.service.OpenDaimonMessageService;
 import io.github.ngirchev.opendaimon.common.storage.config.StorageProperties;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
@@ -32,6 +33,7 @@ public class TelegramMessageService {
     private final OpenDaimonMessageService messageService;
     private final TelegramUserService telegramUserService;
     private final CoreCommonProperties coreCommonProperties;
+    private final MessageLocalizationService messageLocalizationService;
     private final ObjectProvider<StorageProperties> storagePropertiesProvider;
     /** Self-reference for transactional proxy (avoids bypassing @Transactional on internal calls). */
     private final ObjectProvider<TelegramMessageService> selfProvider;
@@ -55,7 +57,7 @@ public class TelegramMessageService {
         // Get or create assistant role for user via TelegramUserService
         String roleContent = assistantRoleContent != null 
                 ? assistantRoleContent 
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), telegramUser.getLanguageCode());
         AssistantRole assistantRole = telegramUserService.getOrCreateAssistantRole(telegramUser, roleContent);
         
         // Prepare Telegram-specific metadata
@@ -121,7 +123,7 @@ public class TelegramMessageService {
         
         String roleContent = assistantRoleContent != null
                 ? assistantRoleContent 
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), telegramUser.getLanguageCode());
         AssistantRole assistantRole = telegramUserService.getOrCreateAssistantRole(telegramUser, roleContent);
         return messageService.saveAssistantMessage(
                 telegramUser, 
@@ -163,7 +165,7 @@ public class TelegramMessageService {
         // Get or create assistant role for user via TelegramUserService
         String roleContent = assistantRoleContent != null 
                 ? assistantRoleContent 
-                : coreCommonProperties.getAssistantRole();
+                : messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), telegramUser.getLanguageCode());
         AssistantRole assistantRole = telegramUserService.getOrCreateAssistantRole(telegramUser, roleContent);
         
         // Use base MessageService to save message

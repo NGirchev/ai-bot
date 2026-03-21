@@ -75,40 +75,38 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
         TelegramUser user = telegramUserService.getOrCreateUser(message.getFrom());
         String userText = command.userText() != null ? command.userText().trim() : null;
         
+        String lang = command.languageCode();
         if (userText == null || userText.isEmpty()) {
             // Show current role
             AssistantRole currentRole = telegramUserService.getOrCreateAssistantRole(
-                    user, 
-                    coreCommonProperties.getAssistantRole()
+                    user,
+                    messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), lang)
             );
-            
+
             // Load role data inside transaction to avoid LazyInitializationException
             Integer roleVersion = currentRole.getVersion();
             String roleContent = currentRole.getContent();
-            
+
             // Send first message with header
-            String roleHeader = String.format(
-                    "📋 Current assistant role (version %d):", 
-                    roleVersion
-            );
+            String roleHeader = messageLocalizationService.getMessage("telegram.role.header", lang, roleVersion);
             sendMessage(command.telegramId(), roleHeader);
-            
+
             // Send second message with role content
             sendMessage(command.telegramId(), roleContent);
-            
+
             // Send third message with role selection menu
-            sendRoleMenu(command.telegramId());
-            
+            sendRoleMenu(command.telegramId(), lang);
+
             // Return null as messages already sent
             return null;
         } else {
             // Update role
             telegramUserService.updateAssistantRole(message.getFrom(), userText);
             telegramBotProvider.getObject().clearStatus(message.getFrom().getId());
-            
+
             // Send confirmation replying to user message
-            Integer replyToMessageId = message != null ? message.getMessageId() : null;
-            sendMessage(command.telegramId(), "✅ Assistant role updated successfully!", replyToMessageId);
+            Integer replyToMessageId = message.getMessageId();
+            sendMessage(command.telegramId(), messageLocalizationService.getMessage("telegram.role.updated", lang), replyToMessageId);
             return null;
         }
     }
@@ -120,34 +118,34 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
             throw new TelegramCommandHandlerException(command.telegramId(), "Invalid callback data");
         }
 
+        String lang = command.languageCode();
         String roleKey = callbackData.substring(CALLBACK_PREFIX.length());
         if ("CUSTOM".equals(roleKey)) {
             TelegramUser user = telegramUserService.getOrCreateUser(cq.getFrom());
             telegramUserService.updateUserSession(user, TelegramCommand.ROLE);
-            ackCallback(cq.getId(), "✏️ Enter new role");
-            sendMessage(command.telegramId(), "✏️ Enter the new role as text.");
+            ackCallback(cq.getId(), messageLocalizationService.getMessage("telegram.role.enter.ack", lang));
+            sendMessage(command.telegramId(), messageLocalizationService.getMessage("telegram.role.enter.text", lang));
             return;
         }
 
-        Optional<RolePreset> preset = getRolePresets().stream()
+        Optional<RolePreset> preset = getRolePresets(lang).stream()
                 .filter(role -> role.key().equals(roleKey))
                 .findFirst();
         if (preset.isEmpty()) {
-            ackCallback(cq.getId(), "❌ Role not found");
-            sendErrorMessage(command.telegramId(), "Unknown role");
+            ackCallback(cq.getId(), messageLocalizationService.getMessage("telegram.role.ack.not.found", lang));
+            sendErrorMessage(command.telegramId(), messageLocalizationService.getMessage("telegram.role.not.found", lang));
             return;
         }
 
-        // Update role (TelegramUserService will add locale requirement)
         telegramUserService.updateAssistantRole(cq.getFrom(), preset.get().content());
         telegramBotProvider.getObject().clearStatus(cq.getFrom().getId());
-        ackCallback(cq.getId(), "✅ Role updated");
-        sendMessage(command.telegramId(), "✅ Role changed: " + preset.get().title());
+        ackCallback(cq.getId(), messageLocalizationService.getMessage("telegram.role.ack.updated", lang));
+        sendMessage(command.telegramId(), messageLocalizationService.getMessage("telegram.role.changed", lang, preset.get().title()));
     }
 
-    private void sendRoleMenu(Long chatId) {
+    private void sendRoleMenu(Long chatId, String lang) {
         try {
-            List<List<InlineKeyboardButton>> keyboard = getRolePresets().stream()
+            List<List<InlineKeyboardButton>> keyboard = getRolePresets(lang).stream()
                     .map(role -> {
                         InlineKeyboardButton button = new InlineKeyboardButton(role.title());
                         button.setCallbackData(CALLBACK_PREFIX + role.key());
@@ -155,14 +153,16 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
                     })
                     .toList();
 
-            InlineKeyboardButton customButton = new InlineKeyboardButton("✏️ Write custom role");
+            InlineKeyboardButton customButton = new InlineKeyboardButton(
+                    messageLocalizationService.getMessage("telegram.role.custom.button", lang));
             customButton.setCallbackData(CALLBACK_CUSTOM);
 
             keyboard = new java.util.ArrayList<>(keyboard);
             keyboard.add(List.of(customButton));
 
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup(keyboard);
-            SendMessage msg = new SendMessage(chatId.toString(), "🎭 Choose a role from the list or set your own:");
+            SendMessage msg = new SendMessage(chatId.toString(),
+                    messageLocalizationService.getMessage("telegram.role.menu", lang));
             msg.setReplyMarkup(markup);
             telegramBotProvider.getObject().execute(msg);
         } catch (Exception e) {
@@ -182,15 +182,16 @@ public class RoleTelegramCommandHandler extends AbstractTelegramCommandHandlerWi
         }
     }
 
-    private List<RolePreset> getRolePresets() {
+    private List<RolePreset> getRolePresets(String lang) {
         return List.of(
-                new RolePreset("DEFAULT", "🌟 Default", coreCommonProperties.getAssistantRole()),
-                new RolePreset("COACH", "🧭 Coach", "You are a development and goals coach. You help clarify requests, "
-                        + "ask questions, suggest steps and support motivation. Keep answers short and structured."),
-                new RolePreset("EDITOR", "✍️ Editor", "You are a text editor. You fix errors, "
-                        + "improve style and suggest better wording while preserving meaning."),
-                new RolePreset("DEV", "💻 Developer", "You are a senior Java developer and architect. "
-                        + "You suggest solutions, code and explanations, considering Spring Boot, clean architecture and best practices.")
+                new RolePreset("DEFAULT", messageLocalizationService.getMessage("telegram.role.preset.default", lang),
+                        messageLocalizationService.getMessage(coreCommonProperties.getAssistantRole(), lang)),
+                new RolePreset("COACH", messageLocalizationService.getMessage("telegram.role.preset.coach", lang),
+                        messageLocalizationService.getMessage("role.content.coach", lang)),
+                new RolePreset("EDITOR", messageLocalizationService.getMessage("telegram.role.preset.editor", lang),
+                        messageLocalizationService.getMessage("role.content.editor", lang)),
+                new RolePreset("DEV", messageLocalizationService.getMessage("telegram.role.preset.developer", lang),
+                        messageLocalizationService.getMessage("role.content.developer", lang))
         );
     }
 

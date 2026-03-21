@@ -19,17 +19,21 @@ Priority is not a separate “plan” in the app; it is derived from Telegram (a
 
 ## 2. Capabilities by priority
 
-In [DefaultAICommandFactory](../opendaimon-common/src/main/java/io/github/ngirchev/opendaimon/common/ai/factory/DefaultAICommandFactory.java), priority determines the **ModelCapabilities** set (what the model must support):
+In [DefaultAICommandFactory](../opendaimon-common/src/main/java/io/github/ngirchev/opendaimon/common/ai/factory/DefaultAICommandFactory.java), priority maps to a **chat-routing** tier in config (`required-capabilities`, `optional-capabilities`, `max-price`):
 
-| Priority   | Capabilities | Extra |
-|-----------|---------------|-------|
-| **ADMIN** | `AUTO` | Single capability: “any suitable model”; in practice resolves to openrouter/auto |
-| **VIP**   | `CHAT`, `MODERATION`, `TOOL_CALLING`, `WEB` | Request body gets `max_price: 0` (free-only) |
-| **REGULAR** | `CHAT` | Chat only |
+| Priority   | Required capabilities | Optional capabilities (typical) | Extra |
+|-----------|------------------------|----------------------------------|-------|
+| **ADMIN** | From `chat-routing.ADMIN` (e.g. `AUTO`) | From config | OpenRouter `max_price` from `chat-routing.ADMIN` |
+| **VIP**   | From `chat-routing.VIP` (e.g. `CHAT`) | From config (e.g. `TOOL_CALLING`, `WEB`) | OpenRouter `max_price` from `chat-routing.VIP` (e.g. free-only when set to `0`) |
+| **REGULAR** | From `chat-routing.REGULAR` (e.g. `CHAT`) | From config | OpenRouter `max_price` from `chat-routing.REGULAR` |
 
-If the request has image attachments, **VISION** is added to the set for all priorities.
+If the request has image attachments, **VISION** is added to the **required** set for all priorities.
 
-The gateway then calls `getCandidatesByCapabilities(capabilities, null)` and receives all registry models that satisfy **all** requested capabilities. There is no separate “free model search by model name”: for VIP we constrain cost via `max_price: 0`; for REGULAR/ADMIN we only filter by capabilities.
+The gateway calls `getCandidatesByCapabilities(required, …)` so models must satisfy **all required** capabilities. If **optional** capabilities are non-empty, candidates are **sorted** to prefer models that also match optional caps (e.g. `WEB`), without excluding models that only satisfy required caps.
+
+[SpringAIChatService](../opendaimon-spring-ai/src/main/java/io/github/ngirchev/opendaimon/ai/springai/service/SpringAIChatService.java) registers web tools when `WEB` appears in **required or optional** capabilities on the command.
+
+There is no separate “free model search by model name”: cost is constrained per tier via **`max_price` in `open-daimon.common.chat-routing`**, together with the capability sets above.
 
 ## 3. Free models: where they come from and how they are filtered
 
@@ -48,7 +52,7 @@ Only free models from the API whose id is in this list (and passes other filters
 
 ## 4. Models and capabilities (reference)
 
-**Capability keys:** CHAT, TOOL_CALLING, WEB, SUMMARIZATION, STRUCTURED_OUTPUT, VISION, EMBEDDING, MODERATION, FREE. AUTO = “any”; used for openrouter/auto.
+**Capability keys:** CHAT, TOOL_CALLING, WEB, SUMMARIZATION, STRUCTURED_OUTPUT, VISION, EMBEDDING, FREE. AUTO = “any”; used for openrouter/auto.
 
 **Top 3 OpenRouter free (in `models.list`):**
 
@@ -97,7 +101,7 @@ Only free models from the API whose id is in this list (and passes other filters
 ## 5. Summary
 
 - **Tariffs** = user priority: ADMIN / VIP / REGULAR (and BLOCKED), derived from admin flag, whitelist, and channel membership.
-- **Tariff only affects the capability set** (AUTO for ADMIN, CHAT+TOOL_CALLING+WEB+MODERATION for VIP, CHAT for REGULAR); for VIP the request also gets `max_price: 0`.
+- **Tariff affects the capability set** (AUTO for ADMIN, CHAT+TOOL_CALLING+WEB for VIP, CHAT for REGULAR) and **OpenRouter `max_price`** per tier from `open-daimon.common.chat-routing` (ADMIN / VIP / REGULAR).
 - **Free models** = OpenRouter models with zero pricing that pass the `include-model-ids` (and other) filters; one shared set for all users, not a per-model search.
 
 ## Related

@@ -17,6 +17,7 @@ import io.github.ngirchev.opendaimon.telegram.command.TelegramCommand;
 import io.github.ngirchev.opendaimon.telegram.command.TelegramCommandType;
 import io.github.ngirchev.opendaimon.telegram.command.handler.TelegramCommandHandlerException;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
+import io.github.ngirchev.opendaimon.telegram.service.TelegramBotMenuService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
 import org.springframework.beans.factory.ObjectProvider;
@@ -43,6 +44,8 @@ class LanguageTelegramCommandHandlerTest {
     private MessageLocalizationService messageLocalizationService;
     @Mock
     private TelegramUserService telegramUserService;
+    @Mock
+    private TelegramBotMenuService telegramBotMenuService;
 
     private LanguageTelegramCommandHandler handler;
 
@@ -64,7 +67,7 @@ class LanguageTelegramCommandHandlerTest {
         when(messageLocalizationService.getMessage(eq("telegram.language.unknown"), anyString()))
             .thenReturn("Unknown language");
         handler = new LanguageTelegramCommandHandler(
-            telegramBotProvider, typingIndicatorService, messageLocalizationService, telegramUserService);
+            telegramBotProvider, typingIndicatorService, messageLocalizationService, telegramUserService, telegramBotMenuService);
     }
 
     @Test
@@ -127,7 +130,7 @@ class LanguageTelegramCommandHandlerTest {
 
         handler.handleInner(command);
 
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Current language"), isNull());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Current language"), isNull(), isNull());
         verify(telegramBot).execute(any(org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
     }
 
@@ -150,7 +153,7 @@ class LanguageTelegramCommandHandlerTest {
         handler.handleInner(command);
 
         verify(telegramUserService).updateLanguageCode(eq(from.getId()), eq("ru"));
-        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Language updated"), isNull());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), contains("Language updated"), isNull(), isNull());
     }
 
     @Test

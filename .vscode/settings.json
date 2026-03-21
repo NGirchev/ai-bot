@@ -7,5 +7,9 @@
     "java.test.config": {
         "vmArgs": ["-Xmx512M"]
     },
-    "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m"
+    "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m",
+    "sonarlint.connectedMode.project": {
+        "connectionId": "ngirchev",
+        "projectKey": "NGirchev_open-daimon"
+    }
 }

@@ -1,6 +1,8 @@
 package io.github.ngirchev.opendaimon.common.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import io.github.ngirchev.opendaimon.common.model.ConversationThread;
 import io.github.ngirchev.opendaimon.common.model.User;
@@ -11,11 +13,18 @@ import java.util.Optional;
 
 @Repository
 public interface ConversationThreadRepository extends JpaRepository<ConversationThread, Long> {
-    
+
     /**
      * Finds thread by unique key.
      */
     Optional<ConversationThread> findByThreadKey(String threadKey);
+
+    /**
+     * Finds thread by unique key with user eagerly loaded (avoids LazyInitializationException
+     * when called outside of an active Hibernate session, e.g. from Spring event listeners).
+     */
+    @Query("SELECT t FROM ConversationThread t JOIN FETCH t.user WHERE t.threadKey = :threadKey")
+    Optional<ConversationThread> findByThreadKeyWithUser(@Param("threadKey") String threadKey);
     
     /**
      * Finds all active threads of user, sorted by last activity date (newest first).

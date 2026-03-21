@@ -2,6 +2,7 @@ package io.github.ngirchev.opendaimon.ai.springai.retry;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -10,15 +11,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
-import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -263,12 +257,10 @@ public class OpenRouterFreeModelResolver {
             List<String> cached = cachedFreeOpenRouterModels.get();
             if (cached == null) {
                 cached = loadFreeOpenRouterModelIds();
-                if (cached != null) {
-                    cachedFreeOpenRouterModels.set(List.copyOf(cached));
-                    lastRefreshAtEpochMs.set(System.currentTimeMillis());
-                }
+                cachedFreeOpenRouterModels.set(List.copyOf(cached));
+                lastRefreshAtEpochMs.set(System.currentTimeMillis());
             }
-            if (cached == null || cached.isEmpty()) {
+            if (cached.isEmpty()) {
                 return null;
             }
 
@@ -306,12 +298,18 @@ public class OpenRouterFreeModelResolver {
     private Comparator<String> candidateComparator(long nowEpochMs) {
         return Comparator.<String>comparingDouble(id -> score(id, nowEpochMs)).reversed()
                 // Prefer models that already succeeded in this process
-                .thenComparing((String id) -> {
-                    ModelStats stats = statsByModelId.get(id);
-                    return stats != null && stats.lastStatus == 200;
-                }, Comparator.reverseOrder())
+                .thenComparing(
+                        (String id) -> {
+                            ModelStats stats = statsByModelId.get(id);
+                            return stats != null && stats.lastStatus == 200;
+                        }, Comparator.reverseOrder()
+                )
                 // Prefer tools-capable models as a general proxy for "chat" capability quality
-                .thenComparing((String id) -> infoByModelId.getOrDefault(id, ModelInfo.UNKNOWN).capabilities().contains(ModelCapabilities.TOOL_CALLING), Comparator.reverseOrder())
+                .thenComparing(
+                        (String id) -> infoByModelId.getOrDefault(id, ModelInfo.UNKNOWN)
+                                .capabilities()
+                                .contains(ModelCapabilities.TOOL_CALLING), Comparator.reverseOrder()
+                )
                 .thenComparing(Comparator.naturalOrder());
     }
 
@@ -340,6 +338,7 @@ public class OpenRouterFreeModelResolver {
         }
         return base;
     }
+
     private double ewma(double current, long sampleMs, double alpha) {
         if (current <= 0) {
             return sampleMs;
@@ -437,38 +436,48 @@ public class OpenRouterFreeModelResolver {
         if (modelIds == null || modelIds.isEmpty()) {
             return Collections.emptyList();
         }
-        OpenRouterModelsProperties.Filters filters = openRouterModelsProperties.getFilters();
-        if (filters == null) {
-            return modelIds;
+
+        List<String> result = new ArrayList<>(modelIds);
+
+        // 1. Apply blacklist first
+        OpenRouterModelsProperties.Blacklist blacklist = openRouterModelsProperties.getBlacklist();
+        if (blacklist != null) {
+            if (blacklist.getExcludeModelIds() != null && !blacklist.getExcludeModelIds().isEmpty()) {
+                HashSet<String> deny = new HashSet<>(blacklist.getExcludeModelIds());
+                result = result.stream().filter(id -> !deny.contains(id)).toList();
+            }
+            if (blacklist.getExcludeContains() != null && !blacklist.getExcludeContains().isEmpty()) {
+                List<String> parts = blacklist.getExcludeContains();
+                result = result.stream()
+                        .filter(id -> parts.stream().noneMatch(id::contains))
+                        .toList();
+            }
         }
 
-        List<String> result = modelIds;
-
-        if (filters.getIncludeModelIds() != null && !filters.getIncludeModelIds().isEmpty()) {
-            HashSet<String> allow = new HashSet<>(filters.getIncludeModelIds());
-            result = result.stream().filter(allow::contains).toList();
-        }
-
-        if (filters.getIncludeContains() != null && !filters.getIncludeContains().isEmpty()) {
-            List<String> parts = filters.getIncludeContains();
+        // 2. Apply whitelist: keep only models matched by at least one whitelist entry
+        List<OpenRouterModelsProperties.Whitelist> whitelists = openRouterModelsProperties.getWhitelist();
+        if (whitelists != null && !whitelists.isEmpty()) {
             result = result.stream()
-                    .filter(id -> parts.stream().anyMatch(id::contains))
-                    .toList();
-        }
-
-        if (filters.getExcludeModelIds() != null && !filters.getExcludeModelIds().isEmpty()) {
-            HashSet<String> deny = new HashSet<>(filters.getExcludeModelIds());
-            result = result.stream().filter(id -> !deny.contains(id)).toList();
-        }
-
-        if (filters.getExcludeContains() != null && !filters.getExcludeContains().isEmpty()) {
-            List<String> parts = filters.getExcludeContains();
-            result = result.stream()
-                    .filter(id -> parts.stream().noneMatch(id::contains))
+                    .filter(id -> whitelists.stream().anyMatch(wl -> matchesWhitelist(id, wl)))
                     .toList();
         }
 
         return result;
+    }
+
+    private static boolean matchesWhitelist(String modelId, OpenRouterModelsProperties.Whitelist wl) {
+        boolean hasIncludeIds = wl.getIncludeModelIds() != null && !wl.getIncludeModelIds().isEmpty();
+        boolean hasIncludeContains = wl.getIncludeContains() != null && !wl.getIncludeContains().isEmpty();
+        if (!hasIncludeIds && !hasIncludeContains) {
+            return true;
+        }
+        if (hasIncludeIds && wl.getIncludeModelIds().contains(modelId)) {
+            return true;
+        }
+        if (hasIncludeContains && wl.getIncludeContains().stream().anyMatch(modelId::contains)) {
+            return true;
+        }
+        return false;
     }
 
     private ModelInfo extractModelInfo(JsonNode modelNode) {

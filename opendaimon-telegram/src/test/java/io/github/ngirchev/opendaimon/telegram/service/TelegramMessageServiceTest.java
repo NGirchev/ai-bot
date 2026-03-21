@@ -6,6 +6,7 @@ import io.github.ngirchev.opendaimon.common.model.AssistantRole;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AttachmentType;
 import io.github.ngirchev.opendaimon.common.model.RequestType;
+import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
 import io.github.ngirchev.opendaimon.common.service.OpenDaimonMessageService;
 import io.github.ngirchev.opendaimon.common.storage.config.StorageProperties;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
@@ -41,6 +42,8 @@ class TelegramMessageServiceTest {
     @Mock
     private CoreCommonProperties coreCommonProperties;
     @Mock
+    private MessageLocalizationService messageLocalizationService;
+    @Mock
     private ObjectProvider<StorageProperties> storagePropertiesProvider;
     @Mock
     private ObjectProvider<TelegramMessageService> selfProvider;
@@ -51,10 +54,12 @@ class TelegramMessageServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(messageLocalizationService.getMessage(any(), any())).thenAnswer(inv -> inv.getArgument(0));
         telegramMessageService = new TelegramMessageService(
                 messageService,
                 telegramUserService,
                 coreCommonProperties,
+                messageLocalizationService,
                 storagePropertiesProvider,
                 selfProvider);
         telegramUser = new TelegramUser();

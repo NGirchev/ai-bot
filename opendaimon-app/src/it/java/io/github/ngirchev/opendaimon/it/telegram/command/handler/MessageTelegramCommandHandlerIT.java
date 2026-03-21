@@ -1,6 +1,8 @@
 package io.github.ngirchev.opendaimon.it.telegram.command.handler;
 
 import io.github.ngirchev.opendaimon.it.ITTestConfiguration;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
+import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -12,6 +14,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -54,6 +57,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -64,6 +68,7 @@ import static io.github.ngirchev.opendaimon.common.ai.LlmParamNames.CHOICES;
 import org.mockito.ArgumentCaptor;
 
 @SpringBootTest(classes = ITTestConfiguration.class)
+@ActiveProfiles("test")
 @EnableConfigurationProperties(TelegramProperties.class)
 @Import({
         TestDatabaseConfiguration.class,
@@ -90,15 +95,10 @@ import org.mockito.ArgumentCaptor;
         "open-daimon.telegram.enabled=true",
         "open-daimon.common.bulkhead.enabled=true",
         "open-daimon.common.assistant-role=You are a helpful assistant",
-        "open-daimon.common.summarization.max-context-tokens=8000",
-        "open-daimon.common.summarization.summary-trigger-threshold=0.7",
-        "open-daimon.common.summarization.keep-recent-messages=20",
+        "open-daimon.common.summarization.message-window-size=5",
+        "open-daimon.common.summarization.max-window-tokens=16000",
+        "open-daimon.common.summarization.max-output-tokens=2000",
         "open-daimon.common.summarization.prompt=You are an assistant. Create a summary in JSON. Conversation:",
-        "open-daimon.common.manual-conversation-history.enabled=false",
-        "open-daimon.common.manual-conversation-history.max-response-tokens=4000",
-        "open-daimon.common.manual-conversation-history.default-window-size=20",
-        "open-daimon.common.manual-conversation-history.include-system-prompt=true",
-        "open-daimon.common.manual-conversation-history.token-estimation-chars-per-token=4",
         "open-daimon.ai.openrouter.enabled=false",
         "open-daimon.ai.deepseek.enabled=false",
         "open-daimon.ai.spring-ai.enabled=false",
@@ -231,12 +231,14 @@ class MessageTelegramCommandHandlerIT {
                 OpenDaimonMessageService messageService,
                 TelegramUserService telegramUserService,
                 CoreCommonProperties coreCommonProperties,
+                MessageLocalizationService messageLocalizationService,
                 ObjectProvider<StorageProperties> storagePropertiesProvider,
                 ObjectProvider<TelegramMessageService> telegramMessageServiceSelfProvider) {
             return new TelegramMessageService(
                     messageService,
                     telegramUserService,
                     coreCommonProperties,
+                    messageLocalizationService,
                     storagePropertiesProvider,
                     telegramMessageServiceSelfProvider
             );
@@ -244,14 +246,35 @@ class MessageTelegramCommandHandlerIT {
 
         @Bean
         @Primary
-        public java.util.concurrent.ScheduledExecutorService typingIndicatorScheduledExecutor() {
-            return mock(java.util.concurrent.ScheduledExecutorService.class);
+        public ScheduledExecutorService typingIndicatorScheduledExecutor() {
+            return mock(ScheduledExecutorService.class);
         }
 
         @Bean
         @Primary
         public TypingIndicatorService typingIndicatorService() {
             return mock(TypingIndicatorService.class);
+        }
+
+        @Bean
+        public UserModelPreferenceService userModelPreferenceService(
+                TelegramUserRepository telegramUserRepository) {
+            return new UserModelPreferenceService(telegramUserRepository);
+        }
+
+        @Bean
+        @Primary
+        public PersistentKeyboardService persistentKeyboardService(
+                UserModelPreferenceService userModelPreferenceService,
+                CoreCommonProperties coreCommonProperties,
+                ObjectProvider<TelegramBot> telegramBotProvider,
+                TelegramProperties telegramProperties,
+                MessageLocalizationService messageLocalizationService,
+                TelegramUserRepository telegramUserRepository
+        ) {
+            return new PersistentKeyboardService(
+                    userModelPreferenceService, coreCommonProperties, telegramBotProvider, telegramProperties,
+                    messageLocalizationService, telegramUserRepository);
         }
 
         @Bean
@@ -266,7 +289,9 @@ class MessageTelegramCommandHandlerIT {
                 AIGatewayRegistry aiGatewayRegistry,
                 OpenDaimonMessageService messageService,
                 AICommandFactoryRegistry aiCommandFactoryRegistry,
-                TelegramProperties telegramProperties) {
+                TelegramProperties telegramProperties,
+                UserModelPreferenceService userModelPreferenceService,
+                PersistentKeyboardService persistentKeyboardService) {
             return new MessageTelegramCommandHandler(
                     telegramBotProvider,
                     typingIndicatorService,
@@ -277,7 +302,9 @@ class MessageTelegramCommandHandlerIT {
                     aiGatewayRegistry,
                     messageService,
                     aiCommandFactoryRegistry,
-                    telegramProperties);
+                    telegramProperties,
+                    userModelPreferenceService,
+                    persistentKeyboardService);
         }
     }
 
@@ -369,7 +396,7 @@ class MessageTelegramCommandHandlerIT {
         // Verify message was sent
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Integer> replyToMessageIdCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(mockTelegramBot, times(1)).sendMessage(eq(command.telegramId()), messageCaptor.capture(), replyToMessageIdCaptor.capture());
+        verify(mockTelegramBot, times(1)).sendMessage(eq(command.telegramId()), messageCaptor.capture(), replyToMessageIdCaptor.capture(), any());
         assertNotNull(messageCaptor.getValue(), "Message must be sent");
         assertFalse(messageCaptor.getValue().isEmpty(), "Message must not be empty");
     }

@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,6 +22,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.context.annotation.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -28,10 +30,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.netty.http.client.HttpClient;
 import io.github.ngirchev.opendaimon.ai.springai.memory.SummarizingChatMemory;
+import io.github.ngirchev.opendaimon.ai.springai.rest.OpenRouterSseNormalizingCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.rest.RestClientLogCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.rest.WebClientLogCustomizer;
 import io.github.ngirchev.opendaimon.ai.springai.service.DocumentProcessingService;
 import io.github.ngirchev.opendaimon.ai.springai.rag.FileRAGService;
+import io.github.ngirchev.opendaimon.ai.springai.service.ModelListAIGateway;
 import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIGateway;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterRotationRegistry;
 import io.github.ngirchev.opendaimon.ai.springai.retry.SpringAIModelRegistry;
@@ -39,7 +43,16 @@ import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIModelType;
 import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIPromptFactory;
 import io.github.ngirchev.opendaimon.ai.springai.service.SpringAIChatService;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelRotationAspect;
+import io.github.ngirchev.opendaimon.ai.springai.tool.UnknownToolFallbackResolver;
 import io.github.ngirchev.opendaimon.ai.springai.tool.WebTools;
+import org.springframework.ai.model.tool.DefaultToolCallingManager;
+import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.ai.tool.resolution.DelegatingToolCallbackResolver;
+import org.springframework.ai.tool.resolution.SpringBeanToolCallbackResolver;
+import org.springframework.ai.tool.resolution.StaticToolCallbackResolver;
+import org.springframework.context.support.GenericApplicationContext;
+
+import java.util.List;
 import io.github.ngirchev.opendaimon.common.repository.OpenDaimonMessageRepository;
 import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterFreeModelResolver;
@@ -47,6 +60,7 @@ import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelsApiClient
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelsProperties;
 import io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterModelStatsRecorder;
 import io.github.ngirchev.opendaimon.ai.springai.retry.metrics.OpenRouterStreamMetricsTracker;
+import io.github.ngirchev.opendaimon.common.ai.ModelDescriptionCache;
 import io.github.ngirchev.opendaimon.common.service.AIGatewayRegistry;
 import io.github.ngirchev.opendaimon.common.service.SummarizationService;
 
@@ -54,10 +68,9 @@ import io.github.ngirchev.opendaimon.common.service.SummarizationService;
 @AutoConfiguration
 @AutoConfigureAfter(name = {
     "io.github.ngirchev.opendaimon.common.config.CoreAutoConfig",
-    "org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration",
-    "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration",
     "org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration"
 })
+@AutoConfigureBefore(name = "org.springframework.ai.model.tool.autoconfigure.ToolCallingAutoConfiguration")
 @EnableConfigurationProperties({SpringAIProperties.class, OpenRouterModelsProperties.class})
 @Import(SpringAIFlywayConfig.class)
 @ConditionalOnProperty(name = "open-daimon.ai.spring-ai.enabled", havingValue = "true")
@@ -133,19 +146,14 @@ public class SpringAIAutoConfig {
             @Qualifier("openAiChatClient") ChatClient openAiChatClient,
             WebTools webTools,
             ChatMemory chatMemory,
-            SpringAIModelType springAIModelType,
-            CoreCommonProperties coreCommonProperties
+            SpringAIModelType springAIModelType
     ) {
-        boolean manualConversationContextEnabled = Boolean.TRUE.equals(
-                coreCommonProperties.getManualConversationHistory().getEnabled()
-        );
         return new SpringAIPromptFactory(
                 ollamaChatClient,
                 openAiChatClient,
                 webTools,
                 chatMemory,
-                springAIModelType,
-                !manualConversationContextEnabled
+                springAIModelType
         );
     }
 
@@ -172,6 +180,19 @@ public class SpringAIAutoConfig {
                 : 1;
         int safeMaxAttempts = Math.max(maxAttempts, 1);
         return new OpenRouterModelRotationAspect(openRouterRotationRegistry, safeMaxAttempts);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ModelDescriptionCache modelDescriptionCache(SpringAIModelRegistry registry) {
+        return registry::getCapabilities;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ModelListAIGateway modelListAIGateway(SpringAIModelRegistry registry,
+                                                  AIGatewayRegistry aiGatewayRegistry) {
+        return new ModelListAIGateway(registry, aiGatewayRegistry);
     }
 
     @Bean
@@ -240,6 +261,33 @@ public class SpringAIAutoConfig {
      */
     @Bean
     @ConditionalOnMissingBean
+    public OpenRouterSseNormalizingCustomizer openRouterSseNormalizingCustomizer() {
+        return new OpenRouterSseNormalizingCustomizer();
+    }
+
+    /**
+     * Custom {@link ToolCallingManager} that includes {@link UnknownToolFallbackResolver} as the last
+     * resolver in the chain. This handles tool calls from models that invoke built-in provider-side tools
+     * not registered in Spring AI (e.g. Gemini Code Execution {@code run}).
+     * <p>
+     * Declared before {@code ToolCallingAutoConfiguration} (via {@code @AutoConfigureBefore})
+     * so that {@code @ConditionalOnMissingBean} in that autoconfig skips creating a default bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean(ToolCallingManager.class)
+    public ToolCallingManager toolCallingManager(GenericApplicationContext applicationContext) {
+        var resolver = new DelegatingToolCallbackResolver(List.of(
+                new StaticToolCallbackResolver(List.of()),
+                SpringBeanToolCallbackResolver.builder().applicationContext(applicationContext).build(),
+                new UnknownToolFallbackResolver()
+        ));
+        return DefaultToolCallingManager.builder()
+                .toolCallbackResolver(resolver)
+                .build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public WebClientCustomizer aiWebClientTimeoutCustomizer(SpringAIProperties properties) {
         return builder -> {
             int timeoutSeconds = properties.getTimeouts() != null && properties.getTimeouts().getResponseTimeoutSeconds() != null
@@ -266,6 +314,27 @@ public class SpringAIAutoConfig {
     }
 
 
+    /**
+     * RestClientCustomizer for Ollama RestClient timeouts.
+     * Spring AI Ollama uses RestClient internally; socket read timeout must be set explicitly.
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "aiRestClientTimeoutCustomizer")
+    public RestClientCustomizer aiRestClientTimeoutCustomizer(SpringAIProperties properties) {
+        return builder -> {
+            int timeoutSeconds = properties.getTimeouts() != null && properties.getTimeouts().getResponseTimeoutSeconds() != null
+                    ? properties.getTimeouts().getResponseTimeoutSeconds()
+                    : 600;
+
+            log.info("Configuring AI RestClient read timeout: {} seconds", timeoutSeconds);
+
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setReadTimeout(java.time.Duration.ofSeconds(timeoutSeconds));
+            factory.setConnectTimeout(java.time.Duration.ofSeconds(30));
+            builder.requestFactory(factory);
+        };
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public WebTools webTools(WebClient webClient, SpringAIProperties properties) {
@@ -279,44 +348,32 @@ public class SpringAIAutoConfig {
     @Primary
     @Bean
     @DependsOn("springAiFlyway")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "false")
     public ChatMemory chatMemoryOnPostgresDb(
             ChatMemoryRepository chatMemoryRepository,
             ConversationThreadRepository conversationThreadRepository,
             OpenDaimonMessageRepository messageRepository,
             SummarizationService summarizationService,
-            SpringAIProperties springAIProperties) {
-        
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
+            CoreCommonProperties coreCommonProperties) {
+
         return new SummarizingChatMemory(
                 chatMemoryRepository,
                 conversationThreadRepository,
                 messageRepository,
                 summarizationService,
-                springAIProperties.getHistoryWindowSize()
+                eventPublisher,
+                coreCommonProperties.getSummarization().getMessageWindowSize(),
+                coreCommonProperties.getSummarization().getMaxWindowTokens()
         );
     }
 
     @Bean("ollamaChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "false")
     public ChatClient ollamaChatClientWithHistory(OllamaChatModel ollamaChatModel) {
         return ChatClient.builder(ollamaChatModel).build();
     }
 
     @Bean("openAiChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "false")
     public ChatClient openAiChatClientWithHistory(OpenAiChatModel openAiChatModel) {
-        return ChatClient.builder(openAiChatModel).build();
-    }
-
-    @Bean("ollamaChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "true")
-    public ChatClient ollamaChatClient(OllamaChatModel ollamaChatModel) {
-        return ChatClient.builder(ollamaChatModel).build();
-    }
-
-    @Bean("openAiChatClient")
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "true")
-    public ChatClient openAiChatClient(OpenAiChatModel openAiChatModel) {
         return ChatClient.builder(openAiChatModel).build();
     }
 

@@ -2,7 +2,7 @@
 - [x] add web application module
 - [ ] mobile app from web version
 - [ ] example wizard with FSM
-- [ ] model selection via buttons
+- [x] model selection via buttons
 - [x] role selection via buttons
 - [x] conversation history
 - [ ] alerting
@@ -18,9 +18,7 @@
 - [x] Improve message grouping
 - [x] Improve format conversion for Spring AI to pass temperature
 - [ ] Add request pricing and budget calculation
-- [ ] ConversationHistoryAICommandFactory: add logic like Default for admin and VIP
 - [ ] Rest whitelist
-- [ ] Free router for REGULAR
 - [ ] Reply options as buttons
 - [ ] Telegram RAG Module
 - [ ] OpenCode Module (Claude)
@@ -30,3 +28,6 @@
 - [ ] Agent publication news module
 - [ ] UI Dashboard with full administration functionality
 - [ ] Image generation
+- [ ] Encoding DB
+- [ ] Asynchronous processing for telegram
+- [ ] Show simple description for the models

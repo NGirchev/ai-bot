@@ -12,20 +12,18 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.web.client.RestTemplate;
-import io.github.ngirchev.opendaimon.common.storage.service.FileStorageService;
 import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.bulkhead.service.NoOpPriorityRequestExecutor;
 import io.github.ngirchev.opendaimon.bulkhead.service.PriorityRequestExecutor;
 import io.github.ngirchev.opendaimon.bulkhead.service.impl.NoOpUserPriorityService;
+import io.github.ngirchev.opendaimon.common.ai.ModelDescriptionCache;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactory;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
-import io.github.ngirchev.opendaimon.common.ai.factory.ConversationHistoryAICommandFactory;
 import io.github.ngirchev.opendaimon.common.ai.factory.DefaultAICommandFactory;
 import io.github.ngirchev.opendaimon.common.command.CommandHandlerRegistry;
 import io.github.ngirchev.opendaimon.common.command.ICommand;
 import io.github.ngirchev.opendaimon.common.command.ICommandHandler;
-import io.github.ngirchev.opendaimon.common.command.IChatCommand;
 import io.github.ngirchev.opendaimon.common.meter.OpenDaimonMeterRegistry;
 import io.github.ngirchev.opendaimon.common.repository.AssistantRoleRepository;
 import io.github.ngirchev.opendaimon.common.repository.BugreportRepository;
@@ -82,14 +80,15 @@ public class CoreAutoConfig {
             ConversationThreadService conversationThreadService,
             AssistantRoleService assistantRoleService,
             CoreCommonProperties coreCommonProperties,
-            TokenCounter tokenCounter,
+            MessageLocalizationService messageLocalizationService,
             ObjectProvider<OpenDaimonMessageService> messageServiceSelfProvider) {
         return new OpenDaimonMessageService(
                 messageRepository,
                 conversationThreadService,
                 assistantRoleService,
                 coreCommonProperties,
-                tokenCounter,
+                messageLocalizationService,
+                new TokenCounter(),
                 messageServiceSelfProvider);
     }
 
@@ -124,12 +123,6 @@ public class CoreAutoConfig {
             AssistantRoleRepository assistantRoleRepository,
             ObjectProvider<AssistantRoleService> assistantRoleServiceSelfProvider) {
         return new AssistantRoleServiceImpl(assistantRoleRepository, assistantRoleServiceSelfProvider);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public TokenCounter tokenCounter(CoreCommonProperties coreCommonProperties) {
-        return new TokenCounter(coreCommonProperties);
     }
 
     @Bean
@@ -181,11 +174,12 @@ public class CoreAutoConfig {
     @ConditionalOnMissingBean(DefaultAICommandFactory.class)
     public AICommandFactory<AICommand, ICommand<?>> defaultAiCommandFactory(
             IUserPriorityService userPriorityService,
-            CoreCommonProperties coreCommonProperties) {
+            CoreCommonProperties coreCommonProperties,
+            ObjectProvider<ModelDescriptionCache> modelDescriptionCacheProvider) {
         return new DefaultAICommandFactory(
                 userPriorityService,
-                coreCommonProperties.getMaxOutputTokens(),
-                coreCommonProperties.getMaxReasoningTokens());
+                modelDescriptionCacheProvider.getIfAvailable(),
+                coreCommonProperties);
     }
 
     @Bean
@@ -198,50 +192,13 @@ public class CoreAutoConfig {
     }
 
     @Bean
-    @ConditionalOnMissingBean(ConversationHistoryAICommandFactory.class)
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "true")
-    public AICommandFactory<AICommand, IChatCommand<?>> conversationHistoryAiCommandFactory(
-            CoreCommonProperties coreCommonProperties,
-            ConversationContextBuilderService conversationContextBuilderService,
-            ConversationThreadService conversationThreadService,
-            AssistantRoleService assistantRoleService,
-            SummarizationService summarizationService
-    ) {
-        return new ConversationHistoryAICommandFactory(
-                coreCommonProperties.getMaxOutputTokens(),
-                coreCommonProperties.getMaxReasoningTokens(),
-                conversationContextBuilderService,
-                conversationThreadService,
-                assistantRoleService,
-                summarizationService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(value = "open-daimon.common.manual-conversation-history.enabled", havingValue = "true")
-    public ConversationContextBuilderService contextBuilderService(
-            OpenDaimonMessageRepository messageRepository,
-            TokenCounter tokenCounter,
-            CoreCommonProperties coreCommonProperties,
-            ObjectProvider<FileStorageService> fileStorageServiceProvider) {
-        return new ConversationContextBuilderService(
-                messageRepository,
-                tokenCounter,
-                coreCommonProperties,
-                fileStorageServiceProvider
-        );
-    }
-
-    @Bean
     @ConditionalOnMissingBean
     public SummarizationService summarizationService(
-            OpenDaimonMessageRepository messageRepository,
             ConversationThreadService threadService,
             AIGatewayRegistry aiGatewayRegistry,
             CoreCommonProperties coreCommonProperties,
             ObjectMapper objectMapper) {
         return new SummarizationService(
-                messageRepository,
                 threadService,
                 aiGatewayRegistry,
                 coreCommonProperties,

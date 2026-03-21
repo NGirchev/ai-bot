@@ -123,6 +123,11 @@ public class TelegramProperties {
          * Enable/disable /language command handler
          */
         private boolean languageEnabled;
+
+        /**
+         * Enable/disable /model command handler
+         */
+        private boolean modelEnabled = true;
     }
     
     @PostConstruct

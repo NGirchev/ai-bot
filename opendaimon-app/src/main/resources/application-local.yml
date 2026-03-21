@@ -11,20 +11,22 @@ open-daimon:
         ranking:
           cooldown429: 5m
           cooldown5xx: 2m
+          cooldown404: 1h
       models:
         list:
-          - name: "qwen3.5"
+          - name: "gemma3:1b"
             capabilities:
               - AUTO
               - CHAT
               - TOOL_CALLING
               - SUMMARIZATION
               - VISION
-              - MODERATION
               - WEB
             provider-type: OLLAMA
             priority: 1
-          - name: "gemma3:1b"
+            max-reasoning-tokens: 0  # Ollama does not support reasoning parameter
+            think: false  # Disable Qwen3 thinking mode — prevents token budget exhaustion that causes empty responses
+          - name: "nomic-embed-text:v1.5"
             capabilities:
               - EMBEDDING
             provider-type: OLLAMA
@@ -36,3 +38,4 @@ logging:
     io.github.ngirchev.opendaimon.ai.springai.rest.WebClientLogCustomizer: DEBUG
     io.github.ngirchev.opendaimon.ai.springai.config: INFO
     org.springframework.ai.chat.model.MessageAggregator: WARN
+    io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService: DEBUG

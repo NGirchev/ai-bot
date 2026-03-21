@@ -6,16 +6,20 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
-import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
 import io.github.ngirchev.opendaimon.common.repository.OpenDaimonMessageRepository;
 import io.github.ngirchev.opendaimon.common.service.*;
 import io.github.ngirchev.opendaimon.telegram.TelegramBot;
 import io.github.ngirchev.opendaimon.telegram.command.handler.TelegramSupportedCommandProvider;
 import io.github.ngirchev.opendaimon.telegram.command.handler.impl.*;
+import io.github.ngirchev.opendaimon.telegram.service.PersistentKeyboardService;
+import io.github.ngirchev.opendaimon.telegram.service.UserModelPreferenceService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramMessageService;
+import io.github.ngirchev.opendaimon.telegram.repository.TelegramUserRepository;
+import io.github.ngirchev.opendaimon.telegram.service.TelegramBotMenuService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserSessionService;
 
@@ -76,9 +80,10 @@ public class TelegramCommandHandlerConfig {
             ObjectProvider<TelegramBot> telegramBotProvider,
             TypingIndicatorService typingIndicatorService,
             MessageLocalizationService messageLocalizationService,
-            TelegramUserService telegramUserService) {
+            TelegramUserService telegramUserService,
+            TelegramBotMenuService telegramBotMenuService) {
         return new LanguageTelegramCommandHandler(telegramBotProvider,
-                typingIndicatorService, messageLocalizationService, telegramUserService);
+                typingIndicatorService, messageLocalizationService, telegramUserService, telegramBotMenuService);
     }
 
     @Bean
@@ -90,14 +95,16 @@ public class TelegramCommandHandlerConfig {
             MessageLocalizationService messageLocalizationService,
             ConversationThreadService threadService,
             ConversationThreadRepository threadRepository,
-            TelegramUserService telegramUserService) {
+            TelegramUserService telegramUserService,
+            ObjectProvider<PersistentKeyboardService> persistentKeyboardServiceProvider) {
         return new NewThreadTelegramCommandHandler(
                 telegramBotProvider,
                 typingIndicatorService,
                 messageLocalizationService,
                 threadService,
                 threadRepository,
-                telegramUserService);
+                telegramUserService,
+                persistentKeyboardServiceProvider);
     }
 
     @Bean
@@ -151,7 +158,9 @@ public class TelegramCommandHandlerConfig {
             AIGatewayRegistry aiGatewayRegistry,
             OpenDaimonMessageService messageService,
             AICommandFactoryRegistry aiCommandFactoryRegistry,
-            TelegramProperties telegramProperties) {
+            TelegramProperties telegramProperties,
+            UserModelPreferenceService userModelPreferenceService,
+            PersistentKeyboardService persistentKeyboardService) {
         return new MessageTelegramCommandHandler(
                 telegramBotProvider,
                 typingIndicatorService,
@@ -162,7 +171,56 @@ public class TelegramCommandHandlerConfig {
                 aiGatewayRegistry,
                 messageService,
                 aiCommandFactoryRegistry,
-                telegramProperties
+                telegramProperties,
+                userModelPreferenceService,
+                persistentKeyboardService
+        );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public UserModelPreferenceService userModelPreferenceService(
+            TelegramUserRepository telegramUserRepository) {
+        return new UserModelPreferenceService(telegramUserRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "open-daimon.telegram.commands", name = "model-enabled", havingValue = "true", matchIfMissing = true)
+    public PersistentKeyboardService persistentKeyboardService(
+            UserModelPreferenceService userModelPreferenceService,
+            CoreCommonProperties coreCommonProperties,
+            ObjectProvider<TelegramBot> telegramBotProvider,
+            TelegramProperties telegramProperties,
+            MessageLocalizationService messageLocalizationService,
+            TelegramUserRepository telegramUserRepository) {
+        return new PersistentKeyboardService(userModelPreferenceService, coreCommonProperties, telegramBotProvider,
+                telegramProperties, messageLocalizationService, telegramUserRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "open-daimon.telegram.commands", name = "model-enabled", havingValue = "true", matchIfMissing = true)
+    public ModelTelegramCommandHandler modelTelegramCommandHandler(
+            ObjectProvider<TelegramBot> telegramBotProvider,
+            TypingIndicatorService typingIndicatorService,
+            MessageLocalizationService messageLocalizationService,
+            TelegramUserService telegramUserService,
+            UserModelPreferenceService userModelPreferenceService,
+            AIGatewayRegistry aiGatewayRegistry,
+            IUserPriorityService userPriorityService,
+            PersistentKeyboardService persistentKeyboardService,
+            ConversationThreadService conversationThreadService) {
+        return new ModelTelegramCommandHandler(
+                telegramBotProvider,
+                typingIndicatorService,
+                messageLocalizationService,
+                telegramUserService,
+                userModelPreferenceService,
+                aiGatewayRegistry,
+                userPriorityService,
+                persistentKeyboardService,
+                conversationThreadService
         );
     }
 }

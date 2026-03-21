@@ -35,13 +35,13 @@ public class SpringAIModelType {
         Map<SpringAIModelConfig, Integer> rangedModels = new HashMap<>();
         
         for (SpringAIModelConfig model : models) {
-            List<ModelCapabilities> capabilities = model.getCapabilities();
+            Set<ModelCapabilities> capabilities = model.getCapabilities();
             if (capabilities == null || capabilities.isEmpty()) {
                 continue;
             }
             
             // For each model find max index among requested types in its capabilities
-            Integer maxIndex = findMaxIndexForAllTypes(capabilities, modelCapabilities);
+            Integer maxIndex = findMaxIndexForAllTypes(new ArrayList<>(capabilities), modelCapabilities);
             if (maxIndex == null) {
                 // Model does not support all requested types — skip
                 continue;

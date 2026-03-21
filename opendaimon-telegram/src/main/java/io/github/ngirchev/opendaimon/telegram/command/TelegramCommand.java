@@ -24,6 +24,9 @@ public class TelegramCommand implements IChatCommand<TelegramCommandType> {
     public static final String HISTORY = "/history";
     public static final String THREADS = "/threads";
     public static final String LANGUAGE = "/language";
+    public static final String MODEL = "/model";
+    public static final String MODEL_KEYBOARD_PREFIX = "🤖";
+    public static final String CONTEXT_KEYBOARD_PREFIX = "💬";
 
     private Long userId;
     private Long telegramId;

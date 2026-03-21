@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -45,6 +46,7 @@ import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.CHAT;
  * After fixing buffering the test passes (span >= minSpanMs).
  */
 @Slf4j
+@ActiveProfiles("test")
 @SpringBootTest(
         classes = SpringAIGatewayStreamingRealContextIT.TestConfig.class,
         properties = {"spring.main.banner-mode=off"}
@@ -59,18 +61,12 @@ import static io.github.ngirchev.opendaimon.common.ai.ModelCapabilities.CHAT;
         "spring.autoconfigure.exclude=org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration",
         "spring.ai.ollama.base-url=http://127.0.0.1:0",
         "open-daimon.common.bulkhead.enabled=false",
-        "open-daimon.common.summarization.max-context-tokens=8000",
-        "open-daimon.common.summarization.summary-trigger-threshold=0.7",
-        "open-daimon.common.summarization.keep-recent-messages=20",
+        "open-daimon.common.summarization.message-window-size=5",
+        "open-daimon.common.summarization.max-window-tokens=8000",
+        "open-daimon.common.summarization.max-output-tokens=2000",
         "open-daimon.common.summarization.prompt=You are an assistant. Create a summary in JSON. Conversation:",
-        "open-daimon.common.manual-conversation-history.enabled=false",
-        "open-daimon.common.manual-conversation-history.max-response-tokens=4000",
-        "open-daimon.common.manual-conversation-history.default-window-size=20",
-        "open-daimon.common.manual-conversation-history.include-system-prompt=true",
-        "open-daimon.common.manual-conversation-history.token-estimation-chars-per-token=4",
         "open-daimon.ai.spring-ai.enabled=true",
         "open-daimon.ai.spring-ai.mock=false",
-        "open-daimon.ai.spring-ai.history-window-size=20",
         "open-daimon.ai.spring-ai.timeouts.response-timeout-seconds=600",
         "open-daimon.ai.spring-ai.timeouts.stream-timeout-seconds=600",
         "open-daimon.ai.spring-ai.openrouter-auto-rotation.models.enabled=false",
@@ -195,6 +191,7 @@ class SpringAIGatewayStreamingRealContextIT {
             "io.github.ngirchev.opendaimon.telegram.config.TelegramAutoConfig",
             "io.github.ngirchev.opendaimon.rest.config.RestAutoConfig",
             "io.github.ngirchev.opendaimon.ui.config.UIAutoConfig",
+            "io.github.ngirchev.opendaimon.common.storage.config.StorageAutoConfig",
             "org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration",
             "org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration",
             "org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration",

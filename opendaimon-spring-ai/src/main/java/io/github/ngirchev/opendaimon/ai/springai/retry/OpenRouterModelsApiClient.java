@@ -66,6 +66,21 @@ public class OpenRouterModelsApiClient {
         return result;
     }
 
+    /**
+     * Fetches a single model's details from OpenRouter GET /v1/models/{modelId}.
+     * Used for diagnostic logging (e.g. on 404 errors).
+     *
+     * @return raw model node, or null if not found / error
+     */
+    public JsonNode fetchModelDetails(String baseUrl, String apiKey, String modelId) {
+        if (!StringUtils.hasText(baseUrl) || !StringUtils.hasText(apiKey) || !StringUtils.hasText(modelId)) {
+            return null;
+        }
+        String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        String url = base + "/v1/models/" + modelId;
+        return fetchJson(url, apiKey);
+    }
+
     private JsonNode fetchJson(String url, String apiKey) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + apiKey);

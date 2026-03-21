@@ -90,8 +90,7 @@ class SpringAIGatewayMemoryAdvisorTest {
                 ollamaChatClient, // use ollama for openAiChatClient too for simplicity
                 mock(WebTools.class),
                 chatMemory,
-                springAIModelType,
-                true // useChatMemoryAdvisor = true
+                springAIModelType
         );
         
         // Create real SpringAIChatService
@@ -107,7 +106,7 @@ class SpringAIGatewayMemoryAdvisorTest {
         // Setup model
         modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OLLAMA);
         modelConfig.setPriority(1);
         
@@ -115,6 +114,8 @@ class SpringAIGatewayMemoryAdvisorTest {
                 .thenReturn(Optional.of(modelConfig));
         lenient().when(springAIModelType.getByCapabilities(eq(Set.of(ModelCapabilities.AUTO))))
                 .thenReturn(Optional.of(modelConfig));
+        lenient().when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any()))
+                .thenReturn(List.of(modelConfig));
         lenient().when(springAIModelRegistry.getCandidatesByCapabilities(any(), any()))
                 .thenReturn(List.of(modelConfig));
         lenient().when(springAIModelRegistry.getByModelName(any())).thenReturn(Optional.of(modelConfig));

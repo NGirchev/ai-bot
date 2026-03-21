@@ -1,23 +1,17 @@
 package io.github.ngirchev.opendaimon.common.service;
 
-import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
-
 import java.util.List;
 
 /**
  * Utility for estimating token count in text.
- * Uses heuristic: 1 token ≈ N characters (from configuration).
+ * Uses heuristic: 1 token ≈ 4 characters.
  *
  * TODO: Can integrate tiktoken or other library for exact count in future
  */
 public class TokenCounter {
-    
-    private final CoreCommonProperties coreCommonProperties;
-    
-    public TokenCounter(CoreCommonProperties coreCommonProperties) {
-        this.coreCommonProperties = coreCommonProperties;
-    }
-    
+
+    private static final int CHARS_PER_TOKEN = 4;
+
     /**
      * Estimates token count in text.
      *
@@ -28,10 +22,9 @@ public class TokenCounter {
         if (text == null || text.isEmpty()) {
             return 0;
         }
-        int charsPerToken = coreCommonProperties.getManualConversationHistory().getTokenEstimationCharsPerToken();
-        return (int) Math.ceil((double) text.length() / charsPerToken);
+        return (int) Math.ceil((double) text.length() / CHARS_PER_TOKEN);
     }
-    
+
     /**
      * Estimates total token count in a list of texts.
      *
@@ -47,4 +40,3 @@ public class TokenCounter {
             .sum();
     }
 }
-

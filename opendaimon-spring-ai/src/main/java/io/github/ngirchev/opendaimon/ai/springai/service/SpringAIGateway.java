@@ -27,12 +27,15 @@ import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.OpenDaimonChatOptions;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIResponse;
 import io.github.ngirchev.opendaimon.common.service.AIUtils;
 import io.github.ngirchev.opendaimon.common.exception.DocumentContentNotExtractableException;
+import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AttachmentType;
+import io.github.ngirchev.opendaimon.bulkhead.model.UserPriority;
 import io.github.ngirchev.opendaimon.common.service.AIGateway;
 import io.github.ngirchev.opendaimon.common.service.AIGatewayRegistry;
 
@@ -90,6 +93,9 @@ public class SpringAIGateway implements AIGateway {
 
     @Override
     public boolean supports(AICommand command) {
+        if (command instanceof FixedModelChatAICommand fixed) {
+            return springAIModelRegistry.getByModelName(fixed.fixedModelId()).isPresent();
+        }
         return !springAIModelRegistry.getCandidatesByCapabilities(command.modelCapabilities(), null).isEmpty();
     }
 
@@ -102,7 +108,7 @@ public class SpringAIGateway implements AIGateway {
         try {
             if (command.options() instanceof OpenDaimonChatOptions chatOptions) {
                 List<Message> messages = createMessages(chatOptions.body());
-                log.info("Gateway: messagesFromBody={}, userRole='{}'", messages.size(), chatOptions.userRole());
+                log.info("Gateway: messagesFromBody={}, userRole='{}'", messages.size(), chatOptions.userRole() == null ? null : chatOptions.userRole().replaceAll("\\s+", " ").trim());
                 addSystemAndUserMessagesIfNeeded(messages, chatOptions, command);
                 return executeChatWithOptions(chatOptions, command, messages);
             } else {
@@ -111,6 +117,8 @@ public class SpringAIGateway implements AIGateway {
         } catch (WebClientResponseException e) {
             log.error(LOG_ERROR_CALLING_SPRING_AI, e.getMessage());
             throw new RuntimeException("Failed to generate response from Spring AI", e);
+        } catch (UnsupportedModelCapabilityException e) {
+            throw e;
         } catch (DocumentContentNotExtractableException e) {
             throw e;
         } catch (Exception e) {
@@ -124,14 +132,50 @@ public class SpringAIGateway implements AIGateway {
     }
 
     private AIResponse executeChatWithOptions(OpenDaimonChatOptions chatOptions, AICommand command, List<Message> messages) {
-        List<SpringAIModelConfig> candidates = springAIModelRegistry.getCandidatesByCapabilities(command.modelCapabilities(), null);
-        if (candidates.isEmpty()) {
-            candidates = springAIModelRegistry.getCandidatesByCapabilities(Set.of(ModelCapabilities.AUTO), null);
+        UserPriority userPriority = resolveUserPriority(command);
+
+        SpringAIModelConfig modelConfig;
+
+        if (command instanceof FixedModelChatAICommand fixed) {
+            // User explicitly selected a model — use it directly, bypass capability filter
+            modelConfig = springAIModelRegistry.getByModelName(fixed.fixedModelId())
+                    .orElseThrow(() -> new RuntimeException("Selected model not found in registry: " + fixed.fixedModelId()));
+
+            // Second-line guard: validate live registry capabilities at execution time
+            Set<ModelCapabilities> liveCapabilities = modelConfig.getCapabilities() != null
+                    ? modelConfig.getCapabilities() : Set.of();
+            Set<ModelCapabilities> requiredCapabilities = command.modelCapabilities().stream()
+                    .filter(c -> c != ModelCapabilities.AUTO)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!requiredCapabilities.isEmpty() && !liveCapabilities.containsAll(requiredCapabilities)) {
+                Set<ModelCapabilities> missing = requiredCapabilities.stream()
+                        .filter(c -> !liveCapabilities.contains(c))
+                        .collect(java.util.stream.Collectors.toSet());
+                throw new UnsupportedModelCapabilityException(fixed.fixedModelId(), missing);
+            }
+            // Explicit VISION guard (catches cases where modelDescriptionCache was unavailable at command creation)
+            if (fixed.hasImageAttachments() && !liveCapabilities.contains(ModelCapabilities.VISION)) {
+                throw new UnsupportedModelCapabilityException(
+                        fixed.fixedModelId(), Set.of(ModelCapabilities.VISION));
+            }
+        } else {
+            // AUTO mode — use capability-based selection
+            List<SpringAIModelConfig> candidates = springAIModelRegistry
+                    .getCandidatesByCapabilities(command.modelCapabilities(), null, userPriority);
+            // Prefer models that also cover optional capabilities (stable sort — preserves priority order within same score)
+            Set<ModelCapabilities> optional = command.optionalCapabilities();
+            if (!optional.isEmpty() && !candidates.isEmpty()) {
+                candidates = candidates.stream()
+                        .sorted(Comparator.comparingInt(
+                                (SpringAIModelConfig m) -> -countMatchingCaps(m.getCapabilities(), optional)))
+                        .toList();
+            }
+            modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
+            if (modelConfig == null) {
+                throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
+            }
         }
-        SpringAIModelConfig modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
-        if (modelConfig == null) {
-            throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
-        }
+
         if (modelConfig.getProviderType() == null) {
             throw new IllegalStateException(
                     "Model from registry has null providerType. model=" + modelConfig.getName()
@@ -155,19 +199,8 @@ public class SpringAIGateway implements AIGateway {
             if (!StringUtils.hasText(modelName)) {
                 throw new IllegalArgumentException("Model name is required in request body");
             }
-            var modelConfigOpt = springAIModelRegistry.getByModelName(modelName);
-            SpringAIModelConfig modelConfig;
-            if (modelConfigOpt.isPresent()) {
-                modelConfig = modelConfigOpt.get();
-            } else {
-                Set<ModelCapabilities> caps = Set.of(ModelCapabilities.AUTO);
-                List<SpringAIModelConfig> fallback = springAIModelRegistry.getCandidatesByCapabilities(caps, null);
-                if (fallback.isEmpty()) {
-                    throw new IllegalArgumentException("Unknown model: " + modelName);
-                }
-                log.warn("Model not found in registry, using first candidate by capabilities. requested={}, using={}", modelName, fallback.getFirst().getName());
-                modelConfig = fallback.getFirst();
-            }
+            var modelConfig = springAIModelRegistry.getByModelName(modelName)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown model: " + modelName));
             return chatService.callChatFromBody(
                     modelConfig,
                     requestBody,
@@ -307,7 +340,7 @@ public class SpringAIGateway implements AIGateway {
 
     private void addSystemAndUserMessagesIfNeeded(List<Message> messages, OpenDaimonChatOptions chatOptions, AICommand command) {
         if (StringUtils.hasText(chatOptions.systemRole())) {
-            String systemRole = chatOptions.systemRole();
+            String systemRole = appendLanguageInstruction(chatOptions.systemRole(), command);
             boolean alreadyPresent = messages.stream()
                     .filter(SystemMessage.class::isInstance)
                     .map(SystemMessage.class::cast)
@@ -324,9 +357,13 @@ public class SpringAIGateway implements AIGateway {
                 .filter(UserMessage.class::isInstance)
                 .map(UserMessage.class::cast)
                 .anyMatch(m -> userRole.equals(m.getText()));
-        List<Attachment> attachments = command instanceof ChatAICommand chatCommand ? chatCommand.attachments() : List.of();
-        log.info("Gateway: addingUserMessage={}, attachmentsCount={}, commandIsChatAICommand={}",
-                !userAlreadyPresent, attachments != null ? attachments.size() : 0, command instanceof ChatAICommand);
+        List<Attachment> attachments = command instanceof ChatAICommand chatCommand
+                ? chatCommand.attachments()
+                : command instanceof FixedModelChatAICommand fixed
+                        ? fixed.attachments()
+                        : List.of();
+        log.info("Gateway: addingUserMessage={}, attachmentsCount={}, commandType={}",
+                !userAlreadyPresent, attachments != null ? attachments.size() : 0, command.getClass().getSimpleName());
         if (userAlreadyPresent) {
             return;
         }
@@ -386,6 +423,42 @@ public class SpringAIGateway implements AIGateway {
         return null;
     }
 
+    private String appendLanguageInstruction(String systemRole, AICommand command) {
+        if (command == null || command.metadata() == null) {
+            return systemRole;
+        }
+        String languageCode = command.metadata().get(AICommand.LANGUAGE_CODE_FIELD);
+        if (languageCode == null || languageCode.isBlank()) {
+            return systemRole;
+        }
+        String languageName = switch (languageCode.toLowerCase()) {
+            case "ru" -> "Russian";
+            case "en" -> "English";
+            case "de" -> "German";
+            case "fr" -> "French";
+            case "es" -> "Spanish";
+            case "zh" -> "Chinese";
+            default -> languageCode;
+        };
+        return systemRole + "\nIMPORTANT: Always respond in " + languageName + " (" + languageCode + ").";
+    }
+
+    private UserPriority resolveUserPriority(AICommand command) {
+        if (command == null || command.metadata() == null) {
+            return null;
+        }
+        String raw = command.metadata().get(AICommand.USER_PRIORITY_FIELD);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return UserPriority.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown userPriority in command metadata: {}", raw);
+            return null;
+        }
+    }
+
     /**
      * Processes documents (PDF, DOCX, etc.) via RAG when feature flag is on.
      *
@@ -411,7 +484,7 @@ public class SpringAIGateway implements AIGateway {
         var documentProcessingService = documentProcessingServiceProvider.getIfAvailable();
         FileRAGService fileRagService = ragServiceProvider.getIfAvailable();
         log.info("processRagIfEnabled: userQuery='{}', totalAttachments={}, documentAttachments={}, ragPropertiesNull={}, docServiceNull={}, ragServiceNull={}",
-                userQuery, totalAttachments, documentAttachments.size(), ragProperties == null, documentProcessingService == null, fileRagService == null);
+                userQuery == null ? null : userQuery.replaceAll("\\s+", " ").trim(), totalAttachments, documentAttachments.size(), ragProperties == null, documentProcessingService == null, fileRagService == null);
 
         // Check feature flag
         if (ragProperties == null || !isRagEnabled()) {
@@ -713,6 +786,15 @@ public class SpringAIGateway implements AIGateway {
             log.error("Failed to render PDF '{}' pages as images", filename, e);
             return List.of();
         }
+    }
+
+    private static int countMatchingCaps(Set<ModelCapabilities> modelCaps, Set<ModelCapabilities> optional) {
+        if (modelCaps == null || optional == null) return 0;
+        int count = 0;
+        for (ModelCapabilities cap : optional) {
+            if (modelCaps.contains(cap)) count++;
+        }
+        return count;
     }
 
 }

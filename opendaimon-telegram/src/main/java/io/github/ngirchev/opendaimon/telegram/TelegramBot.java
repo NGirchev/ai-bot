@@ -19,10 +19,12 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeChat;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.InlineQuery;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.inputmessagecontent.InputTextMessageContent;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.result.InlineQueryResultArticle;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -174,6 +176,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                 telegramCommandType = new TelegramCommandType(TelegramCommand.LANGUAGE);
             } else if ("ERROR".equals(callbackData) || "IMPROVEMENT".equals(callbackData)) {
                 telegramCommandType = new TelegramCommandType(TelegramCommand.BUGREPORT);
+            } else if (callbackData.startsWith("MODEL_")) {
+                telegramCommandType = new TelegramCommandType(TelegramCommand.MODEL);
             }
         }
         if (telegramCommandType == null) {
@@ -202,6 +206,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             String commandText = stripped.substring(0, spaceIndex == -1 ? stripped.length() : spaceIndex);
             telegramCommandType = new TelegramCommandType(commandText);
             userText = stripped.replace(commandText, "");
+        } else if (stripped.startsWith(TelegramCommand.MODEL_KEYBOARD_PREFIX)
+                || stripped.startsWith(TelegramCommand.CONTEXT_KEYBOARD_PREFIX)) {
+            telegramCommandType = new TelegramCommandType(TelegramCommand.MODEL);
+            userText = stripped;
         } else {
             TelegramUserSession session = userService.getOrCreateSession(update.getMessage().getFrom());
             if (session.getBotStatus() != null) {
@@ -303,10 +311,18 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     public void sendMessage(Long chatId, String text, Integer replyToMessageId) throws TelegramApiException {
-        sendMessageAndGetId(chatId, text, replyToMessageId);
+        sendMessageAndGetId(chatId, text, replyToMessageId, null);
+    }
+
+    public void sendMessage(Long chatId, String text, Integer replyToMessageId, ReplyKeyboard replyMarkup) throws TelegramApiException {
+        sendMessageAndGetId(chatId, text, replyToMessageId, replyMarkup);
     }
 
     public Integer sendMessageAndGetId(Long chatId, String text, Integer replyToMessageId) throws TelegramApiException {
+        return sendMessageAndGetId(chatId, text, replyToMessageId, null);
+    }
+
+    public Integer sendMessageAndGetId(Long chatId, String text, Integer replyToMessageId, ReplyKeyboard replyMarkup) throws TelegramApiException {
         try {
             SendMessage message = new SendMessage();
             message.setChatId(chatId.toString());
@@ -314,6 +330,9 @@ public class TelegramBot extends TelegramLongPollingBot {
             message.setParseMode("HTML");
             if (replyToMessageId != null) {
                 message.setReplyToMessageId(replyToMessageId);
+            }
+            if (replyMarkup != null) {
+                message.setReplyMarkup(replyMarkup);
             }
             Message sentMessage = execute(message);
             return sentMessage != null ? sentMessage.getMessageId() : null;
@@ -326,6 +345,9 @@ public class TelegramBot extends TelegramLongPollingBot {
                     fallbackMessage.setText(text);
                     if (replyToMessageId != null) {
                         fallbackMessage.setReplyToMessageId(replyToMessageId);
+                    }
+                    if (replyMarkup != null) {
+                        fallbackMessage.setReplyMarkup(replyMarkup);
                     }
                     Message sentMessage = execute(fallbackMessage);
                     return sentMessage != null ? sentMessage.getMessageId() : null;
@@ -462,10 +484,16 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     /**
-     * Sets bot command menu (default scope, no language).
+     * Sets bot command menu scoped to a specific chat, overriding the global language-based menu for that user.
      */
-    public void setMyCommands(List<BotCommand> commands) throws TelegramApiException {
-        setMyCommands(commands, null);
+    public void setMyCommands(List<BotCommand> commands, Long chatId) throws TelegramApiException {
+        SetMyCommands setMyCommands = new SetMyCommands();
+        setMyCommands.setCommands(commands);
+        BotCommandScopeChat scope = new BotCommandScopeChat();
+        scope.setChatId(chatId.toString());
+        setMyCommands.setScope(scope);
+        execute(setMyCommands);
+        log.info("Set {} commands for chat {} menu", commands.size(), chatId);
     }
 
     /**

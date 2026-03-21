@@ -1,0 +1,4 @@
+# Profile "test" for this module — slice tests use @TestPropertySource / @TestConfiguration beans for open-daimon.*.
+spring:
+  main:
+    banner-mode: "off"

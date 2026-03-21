@@ -10,8 +10,12 @@ import reactor.core.publisher.Flux;
 import io.github.ngirchev.opendaimon.ai.springai.config.SpringAIModelConfig;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.AICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.response.AIResponse;
+import io.github.ngirchev.opendaimon.common.exception.ModelGuardrailException;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
+
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -38,14 +42,15 @@ public class OpenRouterModelRotationAspect {
         var candidates = resolveCandidates(modelConfig, command);
 
         return rotate.stream()
-                ? streamWithRetry(pjp, args, candidates, 0)
-                : callWithRetry(pjp, args, candidates);
+                ? streamWithRetry(pjp, args, candidates, 0, command)
+                : callWithRetry(pjp, args, candidates, command);
     }
 
     private AIResponse callWithRetry(
             ProceedingJoinPoint pjp,
             Object[] baseArgs,
-            List<SpringAIModelConfig> candidates
+            List<SpringAIModelConfig> candidates,
+            AICommand command
     ) throws Throwable {
         RuntimeException last = null;
         for (SpringAIModelConfig candidate : candidates) {
@@ -60,6 +65,9 @@ public class OpenRouterModelRotationAspect {
             } catch (Exception e) {
                 long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
                 recordFailureIfPossible(modelId, e, latencyMs);
+                if (command instanceof FixedModelChatAICommand && isGuardrailError(e)) {
+                    throw new ModelGuardrailException(modelId);
+                }
                 last = (e instanceof RuntimeException re) ? re : new RuntimeException(e);
                 if (!isRetryable(e)) {
                     throw last;
@@ -74,23 +82,9 @@ public class OpenRouterModelRotationAspect {
             ProceedingJoinPoint pjp,
             Object[] baseArgs,
             List<SpringAIModelConfig> candidates,
-            int index
+            int index,
+            AICommand command
     ) {
-        // TODO test approach without defer
-//        try {
-//            if (index >= candidates.size()) {
-//                return new SpringAIStreamResponse(Flux.error(new RuntimeException("No models available for retry")));
-//            }
-//            SpringAIModelConfig candidate = candidates.get(index);
-//            String modelId = candidate.getName();
-//            Object[] args = replaceModelConfig(baseArgs, candidate);
-//            SpringAIStreamResponse result = (SpringAIStreamResponse) pjp.proceed(args);
-//            result.chatResponse().doOnNext()
-//            return result;
-//        } catch (Throwable e) {
-//            // retry handling needed here
-//            throw new RuntimeException(e);
-//        }
         if (index >= candidates.size()) {
             log.warn("OpenRouter stream retry: no candidates available (index={}, totalCandidates={})", index, candidates.size());
             return new SpringAIStreamResponse(Flux.error(new RuntimeException("No models available for retry")));
@@ -100,9 +94,12 @@ public class OpenRouterModelRotationAspect {
         Object[] args = replaceModelConfig(baseArgs, candidate);
         try {
             var response = (SpringAIStreamResponse) pjp.proceed(args);
-            response.chatResponse().onErrorResume(nextError -> {
+            int total = candidates.size();
+            var retryFlux = response.chatResponse().onErrorResume(nextError -> {
                 int attempt = index + 1;
-                int total = candidates.size();
+                if (command instanceof FixedModelChatAICommand && isGuardrailError(nextError)) {
+                    return Flux.error(new ModelGuardrailException(modelId));
+                }
                 boolean retryable = isRetryable(nextError);
                 log.warn("OpenRouter stream retry: error caught. model={}, retryable={}, attempt={} of {}, reason={}",
                         modelId, retryable, attempt, total, nextError.getMessage());
@@ -117,11 +114,14 @@ public class OpenRouterModelRotationAspect {
                 String nextModel = candidates.get(index + 1).getName();
                 log.warn("OpenRouter stream retry: switching from model={} to next candidate model={} (next attempt {} of {}). reason={}",
                         modelId, nextModel, index + 2, total, nextError.getMessage());
-                return streamWithRetry(pjp, baseArgs, candidates, index + 1).chatResponse();
+                return streamWithRetry(pjp, baseArgs, candidates, index + 1, command).chatResponse();
             });
-            return response;
+            return new SpringAIStreamResponse(retryFlux);
         } catch (Throwable t) {
             long latencyMs = 0L;
+            if (command instanceof FixedModelChatAICommand && isGuardrailError(t)) {
+                return new SpringAIStreamResponse(Flux.error(new ModelGuardrailException(modelId)));
+            }
             boolean retryable = isRetryable(t);
             log.warn("OpenRouter stream retry: sync error. model={}, retryable={}, attempt={} of {}, reason={}",
                     modelId, retryable, index + 1, candidates.size(), t.getMessage());
@@ -130,7 +130,7 @@ public class OpenRouterModelRotationAspect {
                 String nextModel = candidates.get(index + 1).getName();
                 log.warn("OpenRouter stream retry: switching from model={} to next candidate model={} (attempt {} of {}). reason={}",
                         modelId, nextModel, index + 2, candidates.size(), t.getMessage());
-                return streamWithRetry(pjp, baseArgs, candidates, index + 1);
+                return streamWithRetry(pjp, baseArgs, candidates, index + 1, command);
             }
             return new SpringAIStreamResponse(Flux.error(t));
         }
@@ -159,6 +159,11 @@ public class OpenRouterModelRotationAspect {
     private static final String OPENROUTER_AUTO_MODEL = "openrouter/auto";
 
     private List<SpringAIModelConfig> resolveCandidates(SpringAIModelConfig modelConfig, AICommand command) {
+        // Fixed model: user explicitly selected a model — no routing, no retry fallback
+        if (command instanceof FixedModelChatAICommand) {
+            log.info("OpenRouter model rotation: fixed model selected={}, skipping rotation", modelConfig != null ? modelConfig.getName() : "null");
+            return modelConfig != null ? List.of(modelConfig) : List.of();
+        }
         var capabilities = command.modelCapabilities();
         if (capabilities == null) {
             capabilities = Set.of();
@@ -218,9 +223,32 @@ public class OpenRouterModelRotationAspect {
         throw new IllegalStateException("AICommand not found in aspect target method args");
     }
 
+    private boolean isGuardrailError(Throwable error) {
+        WebClientResponseException w = findWebClientResponseException(error);
+        if (w == null || w.getStatusCode().value() != 404) {
+            return false;
+        }
+        String body = w.getResponseBodyAsString();
+        return body.contains("guardrail restrictions");
+    }
+
     private boolean isRetryable(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause()) {
             if (t instanceof OpenRouterEmptyStreamException) {
+                return true;
+            }
+            // Fallback: Jackson fails to deserialize unknown finish_reason values (e.g. "error" from Gemini).
+            // OpenRouterSseNormalizingCustomizer should prevent this, but guard here as well.
+            if (t instanceof InvalidFormatException ife
+                    && ife.getTargetType() != null
+                    && ife.getTargetType().getName().contains("ChatCompletionFinishReason")) {
+                return true;
+            }
+            // Model called an unknown built-in provider tool (e.g. Gemini Code Execution "run").
+            // UnknownToolFallbackResolver should prevent this, but guard here as well.
+            if (t instanceof IllegalStateException
+                    && t.getMessage() != null
+                    && t.getMessage().startsWith("No ToolCallback found for tool name:")) {
                 return true;
             }
         }
@@ -240,7 +268,11 @@ public class OpenRouterModelRotationAspect {
     }
 
     private static boolean isRetryable400Body(String body) {
-        return body != null && body.contains("Conversation roles must alternate");
+        if (body == null) {
+            return false;
+        }
+        return body.contains("Conversation roles must alternate")
+                || body.contains("Developer instruction is not enabled");
     }
 
     /**

@@ -27,7 +27,7 @@ open-daimon:
       enabled: ${ADMIN_ENABLED:true}
       telegram-id: ${ADMIN_TELEGRAM_ID:}
       rest-email: ${ADMIN_REST_EMAIL:}
-    assistant-role: "You are a helpful assistant, who talks with an old person and trying to help with new difficult world. You need to check your answers, because you shouldn't give an bad, wrong advises. Also, you prefer to answer shortly, without extra details if you were not asked about it. Also you are speaking only in Russian language."
+    assistant-role: role.content.default
     # Hard limit for entire prompt to API (system + history + current). When exceeded — trim/reject and return error.
     max-total-prompt-tokens: 32000
     # Max tokens per user message; when exceeded can reject with hint to shorten.
@@ -36,27 +36,45 @@ open-daimon:
     max-output-tokens: 4000
     # Budget for reasoning (part of total; must be < max-output-tokens). Optional.
     max-reasoning-tokens: 1500
+    # AI model routing by user priority (same key style as telegram.access: ADMIN / VIP / REGULAR).
+    chat-routing:
+      ADMIN:
+        max-price: 5.0
+        required-capabilities:
+          - AUTO
+        optional-capabilities: []
+      VIP:
+        max-price: 0.5
+        required-capabilities:
+          - CHAT
+        optional-capabilities:
+          - TOOL_CALLING
+          - WEB
+      REGULAR:
+        max-price: 0
+        required-capabilities:
+          - CHAT
+        optional-capabilities: []
     # Summarization of long conversations (manual and Spring AI modes).
     summarization:
-      max-context-tokens: 8000
-      summary-trigger-threshold: 0.7
-      keep-recent-messages: 20
-      # Prompt for AI to produce summary + memory_bullets (JSON). Placeholder not used; conversation is sent as separate user message.
+      message-window-size: 50   # total messages (user + assistant); 40 = 20 full exchanges
+      max-window-tokens: 16000  # token limit for context window before summarization; safe for 32K models
+      max-output-tokens: 6000
+      # Prompt for AI to produce summary + memory_bullets (JSON). Conversation is sent as separate user message.
       prompt: |
-        You are an assistant that creates brief summaries of conversations.
-        Analyze the following conversation and produce:
-        1. A short summary (2-3 paragraphs) of main topics and decisions
-        2. A list of 5-10 key facts/decisions (bullet points)
-        Reply in strict JSON only (no ```json or markdown):
-        {"summary": "short summary of the conversation", "memory_bullets": ["fact 1", "fact 2", ...]}
+        You are summarizing a conversation for an AI assistant's long-term memory.
+        If a "Previous conversation summary" section is present, incorporate it into your new summary — produce a SINGLE UNIFIED summary, not a continuation.
+
+        Rules:
+        1. Summarize only what was ACTUALLY said — do not infer, interpret, or invent meaning. If messages are trivial (e.g. single words, numbers, test messages), state that plainly.
+        2. Summary: 2-4 paragraphs, max 500 words. Focus on user's goals, decisions made, problems solved, preferences expressed.
+        3. Memory bullets: up to 10 key facts the assistant must remember going forward. Omit bullets if there is nothing meaningful to remember.
+        4. If previous bullets exist, keep relevant ones, drop obsolete, deduplicate.
+        5. Respond in the SAME LANGUAGE as the conversation.
+        6. Reply in strict JSON only (no markdown, no backticks, no preamble):
+        {"summary": "...", "memory_bullets": ["fact 1", "fact 2", ...]}
+
         Conversation:
-    # Common-managed history (manual context). false = use Spring AI ChatMemory.
-    manual-conversation-history:
-      enabled: false
-      max-response-tokens: 4000
-      default-window-size: 20
-      include-system-prompt: true
-      token-estimation-chars-per-token: 4
   telegram:
     enabled: true
     username: ${TELEGRAM_USERNAME}
@@ -64,13 +82,13 @@ open-daimon:
     # User access configuration via environment variables
     # Format: comma-separated lists
     access:
-      admin:
+      ADMIN:
         ids: ${TELEGRAM_ACCESS_ADMIN_IDS:}      # e.g. "123456789,987654321"
         channels: ${TELEGRAM_ACCESS_ADMIN_CHANNELS:}  # e.g. "-1000000000000,@admins"
-      vip:
+      VIP:
         ids: ${TELEGRAM_ACCESS_VIP_IDS:}        # e.g. "111111111,222222222"
         channels: ${TELEGRAM_ACCESS_VIP_CHANNELS:}  # e.g. "-1002000000000,@vipgroup"
-      regular:
+      REGULAR:
         ids: ${TELEGRAM_ACCESS_REGULAR_IDS:}    # e.g. "333333333"
         channels: ${TELEGRAM_ACCESS_REGULAR_CHANNELS:}  # e.g. "-1003000000000,@community"
     file-upload:
@@ -99,6 +117,7 @@ open-daimon:
       history-enabled: true
       threads-enabled: true
       language-enabled: true
+      model-enabled: true
   rest:
     enabled: true
     # User access configuration via environment variables
@@ -127,49 +146,48 @@ open-daimon:
             url: https://openrouter.ai/api
           refresh-initial-delay: 10s
           refresh-interval: 24h
-          filters:
-            include-model-ids:
-              - meta-llama/llama-3.3-70b-instruct:free
-              - mistralai/mistral-small-3.1-24b-instruct:free
-              - google/gemini-2.0-flash-exp:free
-              - google/gemma-3-27b-it:free
-              - openai/gpt-oss-120b:free
-              - openai/gpt-oss-20b:free
-              - qwen/qwen3-next-80b-a3b-instruct:free
-              - z-ai/glm-4.5-air:free
-              - tngtech/tng-r1t-chimera:free
-              - arcee-ai/trinity-large-preview:free
-              - arcee-ai/trinity-mini:free
-              - cognitivecomputations/dolphin-mistral-24b-venice-edition:free
-              - google/gemma-3-12b-it:free
-              - google/gemma-3-4b-it:free
-              - google/gemma-3n-e2b-it:free
-              - google/gemma-3n-e4b-it:free
-              - liquid/lfm-2.5-1.2b-instruct:free
-              - liquid/lfm-2.5-1.2b-thinking:free
-              - meta-llama/llama-3.2-3b-instruct:free
-              - nousresearch/hermes-3-llama-3.1-405b:free
-              - nvidia/nemotron-3-nano-30b-a3b:free
-              - nvidia/nemotron-nano-12b-v2-vl:free
-              - nvidia/nemotron-nano-9b-v2:free
-              - openrouter/free
-              - qwen/qwen3-4b:free
-              - qwen/qwen3-coder:free
-              - qwen/qwen3-vl-235b-a22b-thinking
-              - qwen/qwen3-vl-30b-a3b-thinking
-              - stepfun/step-3.5-flash:free
+          whitelist:
+            - roles: [ ADMIN, VIP ]
+              include-contains:
+                - openai/gpt-5.4
+                - openai/gpt-5-nano
+                - z-ai/glm-5-turbo
+                - google/gemma-3-4b
+                - qwen/qwen3-4b
+                - qwen/qwen3-vl-235b-a22b-thinking
+                - qwen/qwen3-vl-30b-a3b-thinking
+            - roles: [ ADMIN, REGULAR ]
+              include-model-ids:
+                - google/gemma-3-27b-it:free
+                - qwen/qwen3-next-80b-a3b-instruct:free
+                - z-ai/glm-4.5-air:free
+                - tngtech/tng-r1t-chimera:free
+                - arcee-ai/trinity-large-preview:free
+                - arcee-ai/trinity-mini:free
+                - cognitivecomputations/dolphin-mistral-24b-venice-edition:free
+                - google/gemma-3-12b-it:free
+                - google/gemma-3n-e2b-it:free
+                - google/gemma-3n-e4b-it:free
+                - liquid/lfm-2.5-1.2b-instruct:free
+                - liquid/lfm-2.5-1.2b-thinking:free
+                - meta-llama/llama-3.2-3b-instruct:free
+                - nousresearch/hermes-3-llama-3.1-405b:free
+                - qwen/qwen3-4b:free
+                - stepfun/step-3.5-flash:free
+          blacklist:
+            exclude-model-ids: []  # add model IDs here to block them permanently
           ranking:
             enabled: true
             retry-max-attempts: 3
             latency-ewma-alpha: 0.2
             cooldown429: 10m
             cooldown5xx: 5m
+            cooldown404: 6h
       serper:
         api:
           url: "https://google.serper.dev/search"
           key: ${SERPER_KEY}
       mock: false
-      history-window-size: 20
       timeouts:
         response-timeout-seconds: 600  # 10 minutes for HTTP requests to AI providers
         stream-timeout-seconds: 600   # 10 minutes for streaming
@@ -177,17 +195,6 @@ open-daimon:
       # Ollama models (run locally: ollama pull qwen2.5:7b, ollama pull qwen3-embedding:8b).
       models:
         list:
-          - name: "z-ai/glm-4.5v"
-            capabilities:
-              - AUTO
-              - CHAT
-              - TOOL_CALLING
-              - WEB
-              - SUMMARIZATION
-              - EMBEDDING
-              - VISION
-            provider-type: OPENAI
-            priority: 2
           - name: "openrouter/auto"
             capabilities:
               - AUTO
@@ -199,52 +206,89 @@ open-daimon:
               - VISION
             provider-type: OPENAI
             priority: 3
+            allowed-roles:
+              - ADMIN
+              - VIP
+          - name: "z-ai/glm-4.5v"
+            capabilities:
+              - CHAT
+              - TOOL_CALLING
+              - WEB
+              - EMBEDDING
+              - VISION
+            provider-type: OPENAI
+            priority: 2
+            allowed-roles:
+              - ADMIN
+              - VIP
           - name: "qwen3.5"
             capabilities:
               - CHAT
               - TOOL_CALLING
+              - VISION
+              - WEB
               - SUMMARIZATION
             provider-type: OLLAMA
             priority: 1
+            max-reasoning-tokens: 0  # Ollama does not support reasoning parameter
+            think: false  # Disable Qwen3 thinking mode — prevents token budget exhaustion that causes empty responses
           - name: "qwen3-embedding:8b"
             capabilities:
               - EMBEDDING
             provider-type: OLLAMA
             priority: 1
+            # allowed-roles not set — accessible to all roles
           # Top 3 OpenRouter free models (explicit capabilities; others from include-model-ids get capabilities from API).
+          - name: "openrouter/free"
+            capabilities:
+              - AUTO
+              - CHAT
+              - TOOL_CALLING
+              - WEB
+              - EMBEDDING
+              - VISION
+            provider-type: OPENAI
+            priority: 3
+            allowed-roles:
+              - ADMIN
+              - REGULAR
           - name: "meta-llama/llama-3.3-70b-instruct:free"
             capabilities:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - STRUCTURED_OUTPUT
               - VISION
               - FREE
             provider-type: OPENAI
             priority: 1
-          - name: "google/gemini-2.0-flash-exp:free"
-            capabilities:
-              - CHAT
-              - TOOL_CALLING
-              - WEB
-              - SUMMARIZATION
-              - STRUCTURED_OUTPUT
-              - VISION
-              - FREE
-            provider-type: OPENAI
-            priority: 1
+            allowed-roles:
+              - ADMIN
+              - REGULAR
           - name: "mistralai/mistral-small-3.1-24b-instruct:free"
             capabilities:
               - CHAT
               - TOOL_CALLING
               - WEB
-              - SUMMARIZATION
               - STRUCTURED_OUTPUT
               - VISION
               - FREE
             provider-type: OPENAI
             priority: 1
+            allowed-roles:
+              - ADMIN
+              - REGULAR
+          - name: "google/gemini-2.0-flash-exp:free"
+            capabilities:
+              - CHAT
+              - TOOL_CALLING
+              - WEB
+              - STRUCTURED_OUTPUT
+              - VISION
+              - FREE
+            provider-type: OPENAI
+            priority: 1
+            # allowed-roles not set — accessible to all roles
       rag:
         enabled: true
         chunk-size: 800

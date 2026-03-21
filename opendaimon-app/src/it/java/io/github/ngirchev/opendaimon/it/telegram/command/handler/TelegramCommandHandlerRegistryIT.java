@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import io.github.ngirchev.opendaimon.bulkhead.config.BulkHeadAutoConfig;
 import io.github.ngirchev.opendaimon.common.command.CommandHandlerRegistry;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes = ITTestConfiguration.class)
+@ActiveProfiles("test")
 @EnableConfigurationProperties(TelegramProperties.class)
 @Import({
         TestDatabaseConfiguration.class,
@@ -55,15 +57,10 @@ import static org.junit.jupiter.api.Assertions.*;
         "open-daimon.telegram.max-message-length=4096",
         "open-daimon.common.bulkhead.enabled=true",
         "open-daimon.common.assistant-role=You are a helpful assistant",
-        "open-daimon.common.summarization.max-context-tokens=8000",
-        "open-daimon.common.summarization.summary-trigger-threshold=0.7",
-        "open-daimon.common.summarization.keep-recent-messages=20",
+        "open-daimon.common.summarization.message-window-size=5",
+        "open-daimon.common.summarization.max-window-tokens=16000",
+        "open-daimon.common.summarization.max-output-tokens=2000",
         "open-daimon.common.summarization.prompt=You are an assistant. Create a summary in JSON. Conversation:",
-        "open-daimon.common.manual-conversation-history.enabled=false",
-        "open-daimon.common.manual-conversation-history.max-response-tokens=4000",
-        "open-daimon.common.manual-conversation-history.default-window-size=20",
-        "open-daimon.common.manual-conversation-history.include-system-prompt=true",
-        "open-daimon.common.manual-conversation-history.token-estimation-chars-per-token=4",
         "open-daimon.telegram.commands.start-enabled=true",
         "open-daimon.telegram.commands.role-enabled=true",
         "open-daimon.telegram.commands.message-enabled=true",

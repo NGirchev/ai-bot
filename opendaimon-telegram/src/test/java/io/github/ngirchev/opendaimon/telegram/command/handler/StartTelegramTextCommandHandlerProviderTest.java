@@ -8,8 +8,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import io.github.ngirchev.opendaimon.bulkhead.service.IUserPriorityService;
 import io.github.ngirchev.opendaimon.bulkhead.service.PriorityRequestExecutor;
+import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.factory.AICommandFactoryRegistry;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
@@ -19,7 +22,6 @@ import org.springframework.context.support.ReloadableResourceBundleMessageSource
 import io.github.ngirchev.opendaimon.common.service.AIGatewayRegistry;
 import io.github.ngirchev.opendaimon.common.service.AssistantRoleService;
 import io.github.ngirchev.opendaimon.common.service.BugreportService;
-import io.github.ngirchev.opendaimon.common.service.ConversationContextBuilderService;
 import io.github.ngirchev.opendaimon.common.service.ConversationThreadService;
 import io.github.ngirchev.opendaimon.common.service.OpenDaimonMessageService;
 import io.github.ngirchev.opendaimon.common.service.MessageLocalizationService;
@@ -30,6 +32,7 @@ import io.github.ngirchev.opendaimon.telegram.command.handler.impl.StartTelegram
 import io.github.ngirchev.opendaimon.telegram.config.TelegramCommandHandlerConfig;
 import io.github.ngirchev.opendaimon.telegram.config.TelegramProperties;
 import io.github.ngirchev.opendaimon.telegram.repository.TelegramUserRepository;
+import io.github.ngirchev.opendaimon.telegram.service.TelegramBotMenuService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramMessageService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserSessionService;
@@ -49,6 +52,7 @@ import static org.mockito.Mockito.mock;
 @SpringBootTest(classes = {
         TelegramCommandHandlerConfig.class
 })
+@ActiveProfiles("test")
 @Import(StartTelegramTextCommandHandlerProviderTest.TestConfig.class)
 @TestPropertySource(properties = {
         "open-daimon.telegram.enabled=true",
@@ -59,7 +63,9 @@ import static org.mockito.Mockito.mock;
         "open-daimon.telegram.commands.history-enabled=true",
         "open-daimon.telegram.commands.threads-enabled=true",
         "open-daimon.telegram.token=test-token",
-        "open-daimon.telegram.username=test-bot"
+        "open-daimon.telegram.username=test-bot",
+        "open-daimon.telegram.commands.model-enabled=true",
+        "open-daimon.telegram.commands.language-enabled=true"
 })
 class StartTelegramTextCommandHandlerProviderTest {
 
@@ -177,17 +183,31 @@ class StartTelegramTextCommandHandlerProviderTest {
             props.setMaxUserMessageTokens(4000);
             props.setMaxTotalPromptTokens(32000);
             CoreCommonProperties.SummarizationProperties summarization = new CoreCommonProperties.SummarizationProperties();
-            summarization.setMaxContextTokens(8000);
-            summarization.setSummaryTriggerThreshold(0.7);
-            summarization.setKeepRecentMessages(20);
+            summarization.setMessageWindowSize(20);
+            summarization.setMaxWindowTokens(16000);
+            summarization.setMaxOutputTokens(2000);
+            summarization.setPrompt("You are an assistant. Create a summary in JSON. Conversation:");
             props.setSummarization(summarization);
-            CoreCommonProperties.ManualConversationHistoryProperties manualHistory = new CoreCommonProperties.ManualConversationHistoryProperties();
-            manualHistory.setEnabled(false);
-            manualHistory.setMaxResponseTokens(4000);
-            manualHistory.setDefaultWindowSize(20);
-            manualHistory.setIncludeSystemPrompt(true);
-            manualHistory.setTokenEstimationCharsPerToken(4);
-            props.setManualConversationHistory(manualHistory);
+            CoreCommonProperties.PriorityChatRoutingProperties adminRouting =
+                    new CoreCommonProperties.PriorityChatRoutingProperties();
+            adminRouting.setMaxPrice(0.5);
+            adminRouting.setRequiredCapabilities(List.of(ModelCapabilities.AUTO));
+            adminRouting.setOptionalCapabilities(List.of());
+            CoreCommonProperties.PriorityChatRoutingProperties vip =
+                    new CoreCommonProperties.PriorityChatRoutingProperties();
+            vip.setMaxPrice(0.5);
+            vip.setRequiredCapabilities(List.of(ModelCapabilities.CHAT));
+            vip.setOptionalCapabilities(List.of(ModelCapabilities.TOOL_CALLING, ModelCapabilities.WEB));
+            CoreCommonProperties.PriorityChatRoutingProperties regularRouting =
+                    new CoreCommonProperties.PriorityChatRoutingProperties();
+            regularRouting.setMaxPrice(0.5);
+            regularRouting.setRequiredCapabilities(List.of(ModelCapabilities.CHAT));
+            regularRouting.setOptionalCapabilities(List.of());
+            CoreCommonProperties.ChatRoutingProperties chatRouting = new CoreCommonProperties.ChatRoutingProperties();
+            chatRouting.setAdmin(adminRouting);
+            chatRouting.setVip(vip);
+            chatRouting.setRegular(regularRouting);
+            props.setChatRouting(chatRouting);
             return props;
         }
 
@@ -242,11 +262,6 @@ class StartTelegramTextCommandHandlerProviderTest {
         }
 
         @Bean
-        public ConversationContextBuilderService contextBuilderService() {
-            return mock(ConversationContextBuilderService.class);
-        }
-
-        @Bean
         public AssistantRoleService assistantRoleService() {
             return mock(AssistantRoleService.class);
         }
@@ -274,6 +289,16 @@ class StartTelegramTextCommandHandlerProviderTest {
         @Bean
         public TypingIndicatorService typingIndicatorService() {
             return mock(TypingIndicatorService.class);
+        }
+
+        @Bean
+        public IUserPriorityService userPriorityService() {
+            return mock(IUserPriorityService.class);
+        }
+
+        @Bean
+        public TelegramBotMenuService telegramBotMenuService() {
+            return mock(TelegramBotMenuService.class);
         }
     }
 }

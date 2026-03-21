@@ -41,7 +41,7 @@ public class SpringAIChatService {
     ) {
         String modelForStream = resolveModelName(modelConfig, chatOptions != null ? chatOptions.body() : null);
         Object conversationId = command != null ? command.metadata().get(AICommand.THREAD_KEY_FIELD) : null;
-        boolean webEnabled = command != null && command.modelCapabilities().contains(ModelCapabilities.WEB);
+        boolean webEnabled = webToolsEnabled(command);
         var promptBuilder = promptFactory.preparePrompt(
                 modelConfig,
                 modelForStream,
@@ -64,6 +64,7 @@ public class SpringAIChatService {
 
         AtomicBoolean firstChunk = new AtomicBoolean(true);
         StringBuilder reasoningAccumulator = new StringBuilder();
+        StringBuilder toolCallDebugBuffer = new StringBuilder();
         Flux<ChatResponse> chatResponseFlux = promptBuilder.stream().chatResponse()
                 .doOnNext(cr -> {
                     // Log only first chunk — stream start
@@ -71,6 +72,21 @@ public class SpringAIChatService {
                         log.info("Spring AI stream started - first chunk received");
                     }
                     log.trace("Spring AI stream chunk received: {}", cr);
+
+                    if (log.isDebugEnabled() && cr != null && cr.getResult() != null) {
+                        var meta = cr.getResult().getMetadata();
+                        String finishReason = meta != null ? String.valueOf(meta.getFinishReason()) : "null";
+                        String content = cr.getResult().getOutput() != null
+                                ? cr.getResult().getOutput().getText() : "";
+                        if (content != null && !content.isEmpty()) {
+                            toolCallDebugBuffer.append(content);
+                        }
+                        if (!"null".equals(finishReason) && !finishReason.isEmpty()) {
+                            log.debug("Stream chunk finishReason={}, bufferedContent=[{}]",
+                                    finishReason, normalizeReasoningForLog(toolCallDebugBuffer.toString()));
+                            toolCallDebugBuffer.setLength(0);
+                        }
+                    }
 
                     // Extract reasoning from metadata (OpenRouter and other providers)
                     // if (cr != null) {
@@ -113,7 +129,7 @@ public class SpringAIChatService {
             List<Message> messages
     ) {
         Object conversationId = command != null ? command.metadata().get(AICommand.THREAD_KEY_FIELD) : null;
-        boolean webEnabled = command != null && command.modelCapabilities().contains(ModelCapabilities.WEB);
+        boolean webEnabled = webToolsEnabled(command);
         Map<String, Object> body = chatOptions != null ? chatOptions.body() : null;
         return callChatOnce(modelConfig, body, conversationId, webEnabled, messages, chatOptions);
     }
@@ -175,6 +191,18 @@ public class SpringAIChatService {
             return flux;
         }
         return tracker.track(modelId, flux);
+    }
+
+    /**
+     * Registers web tools (Serper, fetch_url) when the command requests {@link ModelCapabilities#WEB}
+     * in required or optional capabilities (e.g. VIP tier puts WEB in optional for routing).
+     */
+    private static boolean webToolsEnabled(AICommand command) {
+        if (command == null) {
+            return false;
+        }
+        return command.modelCapabilities().contains(ModelCapabilities.WEB)
+                || command.optionalCapabilities().contains(ModelCapabilities.WEB);
     }
 
     private void logStreamError(Throwable error, String modelName, Map<String, Object> body) {

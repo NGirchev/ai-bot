@@ -1,8 +1,6 @@
 package io.github.ngirchev.opendaimon.common.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -17,7 +15,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,14 +34,10 @@ import io.github.ngirchev.opendaimon.common.model.OpenDaimonMessage;
 import io.github.ngirchev.opendaimon.common.model.ConversationThread;
 import io.github.ngirchev.opendaimon.common.model.MessageRole;
 import io.github.ngirchev.opendaimon.common.model.User;
-import io.github.ngirchev.opendaimon.common.repository.OpenDaimonMessageRepository;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SummarizationServiceTest {
-
-    @Mock
-    private OpenDaimonMessageRepository messageRepository;
 
     @Mock
     private ConversationThreadService threadService;
@@ -61,15 +54,14 @@ class SummarizationServiceTest {
     @Mock
     private User user;
 
-    private ObjectMapper objectMapper;
     private SummarizationService summarizationService;
 
     @BeforeEach
     void setUp() {
         when(coreCommonProperties.getSummarization()).thenReturn(summarization);
-        objectMapper = new ObjectMapper(); // Use real ObjectMapper for JSON parsing
+        when(summarization.getPrompt()).thenReturn("Summarize this conversation:");
+        ObjectMapper objectMapper = new ObjectMapper();
         summarizationService = new SummarizationService(
-            messageRepository,
             threadService,
             aiGatewayRegistry,
             coreCommonProperties,
@@ -78,202 +70,7 @@ class SummarizationServiceTest {
     }
 
     @Test
-    void whenThreadTokensBelowThreshold_thenShouldNotTrigger() {
-        // Arrange
-        ConversationThread thread = createThread(1000L);
-        when(summarization.getMaxContextTokens()).thenReturn(8000);
-        when(summarization.getSummaryTriggerThreshold()).thenReturn(0.7);
-
-        // Act
-        boolean result = summarizationService.shouldTriggerSummarization(thread);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    void whenThreadTokensAtThreshold_thenShouldTrigger() {
-        // Arrange
-        ConversationThread thread = createThread(5600L); // 70% of 8000
-        when(summarization.getMaxContextTokens()).thenReturn(8000);
-        when(summarization.getSummaryTriggerThreshold()).thenReturn(0.7);
-
-        // Act
-        boolean result = summarizationService.shouldTriggerSummarization(thread);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    void whenThreadTokensAboveThreshold_thenShouldTrigger() {
-        // Arrange
-        ConversationThread thread = createThread(8000L); // 100% of 8000
-        when(summarization.getMaxContextTokens()).thenReturn(8000);
-        when(summarization.getSummaryTriggerThreshold()).thenReturn(0.7);
-
-        // Act
-        boolean result = summarizationService.shouldTriggerSummarization(thread);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    void whenThreadTokensIsNull_thenShouldNotTrigger() {
-        // Arrange
-        ConversationThread thread = createThread(null);
-
-        // Act
-        boolean result = summarizationService.shouldTriggerSummarization(thread);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    void whenThreadTokensIsZero_thenShouldNotTrigger() {
-        // Arrange
-        ConversationThread thread = createThread(0L);
-
-        // Act
-        boolean result = summarizationService.shouldTriggerSummarization(thread);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    void whenNoMessages_thenSummarizeThreadAsyncCompletesWithoutError() {
-        // Arrange
-        ConversationThread thread = createThread(1000L);
-        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread))
-            .thenReturn(new ArrayList<>());
-
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            summarizationService.summarizeThreadAsync(thread).join();
-        });
-
-        // Verify
-        verify(messageRepository).findByThreadOrderBySequenceNumberAsc(thread);
-        verify(threadService, never()).updateThreadSummary(any(), any(), any());
-    }
-
-    @Test
-    void whenNotEnoughMessages_thenSummarizeThreadAsyncCompletesWithoutError() {
-        // Arrange
-        ConversationThread thread = createThread(1000L);
-        when(summarization.getKeepRecentMessages()).thenReturn(20);
-        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread))
-            .thenReturn(List.of(createUserMessage("Message 1"), createAssistantMessage("Response 1")));
-
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            summarizationService.summarizeThreadAsync(thread).join();
-        });
-
-        // Verify
-        verify(messageRepository).findByThreadOrderBySequenceNumberAsc(thread);
-        verify(threadService, never()).updateThreadSummary(any(), any(), any());
-    }
-
-    @Test
-    void whenEnoughMessages_thenSummarizeThreadAsyncProcessesMessages() {
-        // Arrange
-        ConversationThread thread = createThread(1000L);
-        when(summarization.getKeepRecentMessages()).thenReturn(2);
-        
-        // Create 3 turns (6 messages): with defaultWindowSize=2 only first 2 turns (4 messages) are summarized
-        OpenDaimonMessage userMsg1 = createUserMessage("Message 1");
-        OpenDaimonMessage assistantMsg1 = createAssistantMessage("Response 1");
-        OpenDaimonMessage userMsg2 = createUserMessage("Message 2");
-        OpenDaimonMessage assistantMsg2 = createAssistantMessage("Response 2");
-        OpenDaimonMessage userMsg3 = createUserMessage("Message 3");
-        OpenDaimonMessage assistantMsg3 = createAssistantMessage("Response 3");
-
-        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread))
-            .thenReturn(List.of(userMsg1, assistantMsg1, userMsg2, assistantMsg2, userMsg3, assistantMsg3));
-
-        AIGateway mockGateway = mock(AIGateway.class);
-        when(aiGatewayRegistry.getSupportedAiGateways(any())).thenReturn(List.of(mockGateway));
-        
-        // Mock generateResponse returning OpenRouterResponse in format expected by retrieveMessage
-        Map<String, Object> message = new HashMap<>();
-        message.put("content", "{\"summary\": \"Test summary\", \"memory_bullets\": [\"Fact 1\", \"Fact 2\"]}");
-        Map<String, Object> choice = new HashMap<>();
-        choice.put("message", message);
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("choices", List.of(choice));
-        
-        MapResponse mockResponse = new MapResponse(AIGateways.OPENROUTER, responseData);
-        
-        when(mockGateway.generateResponse(any(AICommand.class))).thenReturn(mockResponse);
-
-        // Act & Assert
-        assertDoesNotThrow(() -> {
-            summarizationService.summarizeThreadAsync(thread).join();
-        });
-
-        // Verify
-        verify(messageRepository).findByThreadOrderBySequenceNumberAsc(thread);
-        verify(mockGateway).generateResponse(any(AICommand.class));
-        verify(threadService).updateThreadSummary(eq(thread), anyString(), anyList());
-    }
-
-    @Test
-    void whenModelReturnsNonJsonThenValidJson_thenRetrySucceeds() {
-        ConversationThread thread = createThread(1000L);
-        when(summarization.getKeepRecentMessages()).thenReturn(2);
-        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread))
-            .thenReturn(List.of(
-                createUserMessage("Message 1"),
-                createAssistantMessage("Response 1"),
-                createUserMessage("Message 2"),
-                createAssistantMessage("Response 2"),
-                createUserMessage("Message 3"),
-                createAssistantMessage("Response 3")));
-
-        AIGateway mockGateway = mock(AIGateway.class);
-        when(aiGatewayRegistry.getSupportedAiGateways(any())).thenReturn(List.of(mockGateway));
-        String validJson = "{\"summary\": \"Test summary\", \"memory_bullets\": [\"Fact 1\", \"Fact 2\"]}";
-        when(mockGateway.generateResponse(any(AICommand.class)))
-            .thenReturn(responseWithContent("Dear, here is the summary..."))
-            .thenReturn(responseWithContent(validJson));
-
-        assertDoesNotThrow(() -> summarizationService.summarizeThreadAsync(thread).join());
-
-        verify(mockGateway, times(2)).generateResponse(any(AICommand.class));
-        verify(threadService).updateThreadSummary(eq(thread), eq("Test summary"), anyList());
-    }
-
-    @Test
-    void whenModelAlwaysReturnsNonJson_thenNoUpdateAfterRetries() {
-        ConversationThread thread = createThread(1000L);
-        when(summarization.getKeepRecentMessages()).thenReturn(2);
-        when(messageRepository.findByThreadOrderBySequenceNumberAsc(thread))
-            .thenReturn(List.of(
-                createUserMessage("Message 1"),
-                createAssistantMessage("Response 1"),
-                createUserMessage("Message 2"),
-                createAssistantMessage("Response 2"),
-                createUserMessage("Message 3"),
-                createAssistantMessage("Response 3")));
-
-        AIGateway mockGateway = mock(AIGateway.class);
-        when(aiGatewayRegistry.getSupportedAiGateways(any())).thenReturn(List.of(mockGateway));
-        when(mockGateway.generateResponse(any(AICommand.class)))
-            .thenReturn(responseWithContent("Dear, here is a brief summary..."));
-
-        summarizationService.summarizeThreadAsync(thread).join();
-
-        // After 3 failed parse attempts summarization does not save result
-        verify(mockGateway, times(3)).generateResponse(any(AICommand.class));
-        verify(threadService, never()).updateThreadSummary(any(), any(), any());
-    }
-
-    @Test
-    void whenSummarizeThreadSyncWithMessages_thenUpdatesSummary() {
+    void whenSummarizeThreadWithMessages_thenUpdatesSummary() {
         ConversationThread thread = createThread(1000L);
         List<OpenDaimonMessage> messages = List.of(
             createUserMessage("Message 1"),
@@ -293,13 +90,56 @@ class SummarizationServiceTest {
     }
 
     @Test
-    void whenSummarizeThreadSyncWithEmptyMessages_thenNoGatewayCall() {
+    void whenSummarizeThreadWithEmptyMessages_thenNoGatewayCall() {
         ConversationThread thread = createThread(1000L);
 
         summarizationService.summarizeThread(thread, List.of());
 
         verify(aiGatewayRegistry, never()).getSupportedAiGateways(any());
         verify(threadService, never()).updateThreadSummary(any(), any(), any());
+    }
+
+    @Test
+    void whenModelReturnsNonJsonThenValidJson_thenRetrySucceeds() {
+        ConversationThread thread = createThread(1000L);
+        List<OpenDaimonMessage> messages = List.of(
+            createUserMessage("Message 1"),
+            createAssistantMessage("Response 1"),
+            createUserMessage("Message 2"),
+            createAssistantMessage("Response 2"));
+
+        AIGateway mockGateway = mock(AIGateway.class);
+        when(aiGatewayRegistry.getSupportedAiGateways(any())).thenReturn(List.of(mockGateway));
+        String validJson = "{\"summary\": \"Test summary\", \"memory_bullets\": [\"Fact 1\", \"Fact 2\"]}";
+        when(mockGateway.generateResponse(any(AICommand.class)))
+            .thenReturn(responseWithContent("Dear, here is the summary..."))
+            .thenReturn(responseWithContent(validJson));
+
+        assertDoesNotThrow(() -> summarizationService.summarizeThread(thread, messages));
+
+        verify(mockGateway, times(2)).generateResponse(any(AICommand.class));
+        verify(threadService).updateThreadSummary(eq(thread), eq("Test summary"), anyList());
+    }
+
+    @Test
+    void whenModelAlwaysReturnsNonJson_thenThrowsAfterRetries() {
+        ConversationThread thread = createThread(1000L);
+        List<OpenDaimonMessage> messages = List.of(
+            createUserMessage("Message 1"),
+            createAssistantMessage("Response 1"),
+            createUserMessage("Message 2"),
+            createAssistantMessage("Response 2"));
+
+        AIGateway mockGateway = mock(AIGateway.class);
+        when(aiGatewayRegistry.getSupportedAiGateways(any())).thenReturn(List.of(mockGateway));
+        when(mockGateway.generateResponse(any(AICommand.class)))
+            .thenReturn(responseWithContent("Dear, here is a brief summary..."));
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+            () -> summarizationService.summarizeThread(thread, messages));
+
+        verify(mockGateway, times(3)).generateResponse(any(AICommand.class));
+        verify(threadService, never()).updateThreadSummary(any(), anyString(), anyList());
     }
 
     private static MapResponse responseWithContent(String content) {
@@ -312,7 +152,6 @@ class SummarizationServiceTest {
         return new MapResponse(AIGateways.OPENROUTER, responseData);
     }
 
-    // Helper methods for creating test objects
     private ConversationThread createThread(Long totalTokens) {
         ConversationThread thread = new ConversationThread();
         thread.setId(1L);
@@ -341,4 +180,3 @@ class SummarizationServiceTest {
         return message;
     }
 }
-

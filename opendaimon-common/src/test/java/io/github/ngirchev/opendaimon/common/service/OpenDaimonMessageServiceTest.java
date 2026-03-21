@@ -40,7 +40,7 @@ class OpenDaimonMessageServiceTest {
     private CoreCommonProperties coreCommonProperties;
 
     @Mock
-    private CoreCommonProperties.ManualConversationHistoryProperties manualHistoryProperties;
+    private MessageLocalizationService messageLocalizationService;
 
     @Mock
     private User user;
@@ -62,15 +62,15 @@ class OpenDaimonMessageServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(coreCommonProperties.getManualConversationHistory()).thenReturn(manualHistoryProperties);
         doReturn(TEST_MAX_USER_MESSAGE_TOKENS).when(coreCommonProperties).getMaxUserMessageTokens();
-        when(manualHistoryProperties.getTokenEstimationCharsPerToken()).thenReturn(4);
-        tokenCounter = new TokenCounter(coreCommonProperties);
+        tokenCounter = new TokenCounter();
+        when(messageLocalizationService.getMessage(any(), any())).thenAnswer(inv -> inv.getArgument(0));
         messageService = new OpenDaimonMessageService(
                 messageRepository,
                 conversationThreadService,
                 assistantRoleService,
                 coreCommonProperties,
+                messageLocalizationService,
                 tokenCounter,
                 messageServiceSelfProvider
         );
@@ -296,18 +296,18 @@ class OpenDaimonMessageServiceTest {
     @Test
     void whenSaveUserMessageExceedsTokenLimit_thenThrowsUserMessageTooLongException() {
         doReturn(2).when(coreCommonProperties).getMaxUserMessageTokens();
-        when(manualHistoryProperties.getTokenEstimationCharsPerToken()).thenReturn(1);
-        TokenCounter strictCounter = new TokenCounter(coreCommonProperties);
         messageService = new OpenDaimonMessageService(
                 messageRepository,
                 conversationThreadService,
                 assistantRoleService,
                 coreCommonProperties,
-                strictCounter,
+                messageLocalizationService,
+                new TokenCounter(),
                 messageServiceSelfProvider
         );
         when(messageServiceSelfProvider.getObject()).thenReturn(messageService);
 
+        // 37 chars / 4 = ~10 tokens, exceeds limit of 2
         String longContent = "This message has more than two tokens";
 
         UserMessageTooLongException ex = assertThrows(UserMessageTooLongException.class, () ->

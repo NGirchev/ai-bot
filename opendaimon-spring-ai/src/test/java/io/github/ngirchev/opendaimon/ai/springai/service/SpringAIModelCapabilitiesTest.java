@@ -16,13 +16,13 @@ class SpringAIModelCapabilitiesTest {
 
     private SpringAIModelType createSpringAIModelType() {
         List<SpringAIModelConfig> models = List.of(
-                createModel("nomic-embed-text:v1.5", List.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("gemma3:1b", List.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
+                createModel("nomic-embed-text:v1.5", Set.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("gemma3:1b", Set.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
         );
         return new SpringAIModelType(models);
     }
 
-    private SpringAIModelConfig createModel(String name, List<ModelCapabilities> capabilities, SpringAIModelConfig.ProviderType providerType, Integer priority) {
+    private SpringAIModelConfig createModel(String name, Set<ModelCapabilities> capabilities, SpringAIModelConfig.ProviderType providerType, Integer priority) {
         SpringAIModelConfig config = new SpringAIModelConfig();
         config.setName(name);
         config.setCapabilities(capabilities);
@@ -35,10 +35,10 @@ class SpringAIModelCapabilitiesTest {
     void whenGetBy3Capabilities_thenReturnGPT() {
         // Arrange
         List<SpringAIModelConfig> models = List.of(
-                createModel("nomic-embed-text:v1.5", List.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("gemma3:1b", List.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("gpt-oss:120b", List.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("openrouter/auto", List.of(AUTO), SpringAIModelConfig.ProviderType.OPENAI, 1)
+                createModel("nomic-embed-text:v1.5", Set.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("gemma3:1b", Set.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("gpt-oss:120b", Set.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("openrouter/auto", Set.of(AUTO), SpringAIModelConfig.ProviderType.OPENAI, 1)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -54,10 +54,10 @@ class SpringAIModelCapabilitiesTest {
     void whenGetBy2Capabilities_thenReturnGPT() {
         // Arrange
         List<SpringAIModelConfig> models = List.of(
-                createModel("nomic-embed-text:v1.5", List.of(TOOL_CALLING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("gemma3:1b", List.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("gpt", List.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OPENAI, 2),
-                createModel("openrouter/auto", List.of(AUTO), SpringAIModelConfig.ProviderType.OPENAI, 3)
+                createModel("nomic-embed-text:v1.5", Set.of(TOOL_CALLING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("gemma3:1b", Set.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("gpt", Set.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OPENAI, 2),
+                createModel("openrouter/auto", Set.of(AUTO), SpringAIModelConfig.ProviderType.OPENAI, 3)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -138,19 +138,6 @@ class SpringAIModelCapabilitiesTest {
 
         // Act
         Optional<SpringAIModelConfig> result = springAIModelType.getByCapability(unsupportedType);
-
-        // Assert
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
-    void whenGetByCapability_MODERATION_thenReturnEmpty() {
-        // Arrange
-        ModelCapabilities moderationType = ModelCapabilities.MODERATION;
-        SpringAIModelType springAIModelType = createSpringAIModelType();
-
-        // Act
-        Optional<SpringAIModelConfig> result = springAIModelType.getByCapability(moderationType);
 
         // Assert
         assertTrue(result.isEmpty());
@@ -296,9 +283,9 @@ class SpringAIModelCapabilitiesTest {
         // model2: [EMBEDDING, CHAT, TOOL_CALLING] - maxIndex = 2 (when requesting CHAT and EMBEDDING)
         // model3: [CHAT, TOOL_CALLING, EMBEDDING] - maxIndex = 2 (when requesting CHAT and EMBEDDING)
         List<SpringAIModelConfig> models = List.of(
-                createModel("model1", List.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model2", List.of(EMBEDDING, CHAT, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model3", List.of(CHAT, TOOL_CALLING, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1)
+                createModel("model1", Set.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model2", Set.of(EMBEDDING, CHAT, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model3", Set.of(CHAT, TOOL_CALLING, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -320,9 +307,9 @@ class SpringAIModelCapabilitiesTest {
         // model1: [CHAT, EMBEDDING] - both types at first two positions, maxIndex = 1
         // model2: [CHAT, EMBEDDING, TOOL_CALLING] - both types at first two positions, maxIndex = 1
         List<SpringAIModelConfig> models = List.of(
-                createModel("model1", List.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model2", List.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model3", List.of(TOOL_CALLING, CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1)
+                createModel("model1", Set.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model2", Set.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model3", Set.of(TOOL_CALLING, CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -344,8 +331,8 @@ class SpringAIModelCapabilitiesTest {
         // model3: [EMBEDDING, CHAT] - both types at positions 0 and 1, maxIndex = 1
         // If there were a model with both types at position 0, it would be returned immediately
         List<SpringAIModelConfig> models = List.of(
-                createModel("model1", List.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model2", List.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
+                createModel("model1", Set.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model2", Set.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -363,9 +350,9 @@ class SpringAIModelCapabilitiesTest {
     void whenGetByCapabilities_threeTypes_thenReturnModelWithAllThreeTypes() {
         // Arrange
         List<SpringAIModelConfig> models = List.of(
-                createModel("model1", List.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model2", List.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model3", List.of(EMBEDDING, TOOL_CALLING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
+                createModel("model1", Set.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model2", Set.of(CHAT, EMBEDDING, TOOL_CALLING), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model3", Set.of(EMBEDDING, TOOL_CALLING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -389,9 +376,9 @@ class SpringAIModelCapabilitiesTest {
         // model2: priority=1 (free) - should be selected
         // model3: priority=2 (paid)
         List<SpringAIModelConfig> models = List.of(
-                createModel("model1", List.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 2),
-                createModel("model2", List.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
-                createModel("model3", List.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 2)
+                createModel("model1", Set.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 2),
+                createModel("model2", Set.of(EMBEDDING, CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1),
+                createModel("model3", Set.of(CHAT, EMBEDDING), SpringAIModelConfig.ProviderType.OLLAMA, 2)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 
@@ -410,8 +397,8 @@ class SpringAIModelCapabilitiesTest {
         // Arrange
         // Free models (priority=1) should have priority over paid (priority=2)
         List<SpringAIModelConfig> models = List.of(
-                createModel("paid-model", List.of(CHAT), SpringAIModelConfig.ProviderType.OPENAI, 2),
-                createModel("free-model", List.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
+                createModel("paid-model", Set.of(CHAT), SpringAIModelConfig.ProviderType.OPENAI, 2),
+                createModel("free-model", Set.of(CHAT), SpringAIModelConfig.ProviderType.OLLAMA, 1)
         );
         SpringAIModelType springAIModelType = new SpringAIModelType(models);
 

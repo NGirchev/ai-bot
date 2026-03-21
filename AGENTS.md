@@ -8,6 +8,11 @@ Java tech lead, experienced, intolerant of sloppy work. Requires tests and verif
 
 ## Rules for AI agents
 
+### Documentation maintenance
+- Every module that has a behavior reference doc (e.g. `SPRING_AI_MODULE.md`, `TELEGRAM_MODULE.md`) must be updated when the behavior it describes changes.
+- If you add or change a use case, command flow, branching condition, input/output format, or error path — update the corresponding doc in the same commit.
+- Docs live next to the module root (e.g. `opendaimon-spring-ai/SPRING_AI_MODULE.md`, `opendaimon-telegram/TELEGRAM_MODULE.md`).
+
 ### Language in code and documentation
 - **Code, comments, javadoc, commit messages, and in-repo documentation** (AGENTS.md, READMEs in packages) must be written in **English**.
 - User-facing strings (i18n in `.properties`, bot messages) may be in any language.
@@ -331,12 +336,6 @@ open-daimon:
       max-context-tokens: 8000
       summary-trigger-threshold: 0.7
       keep-recent-messages: 20
-    manual-conversation-history:  # Common-managed history (manual context)
-      enabled: false  # false = Spring AI ChatMemory
-      max-response-tokens: 4000
-      default-window-size: 20
-      include-system-prompt: true
-      token-estimation-chars-per-token: 4
     bulkhead:
       enabled: true
   telegram:
@@ -471,7 +470,6 @@ The repo uses **LF only** for text files (`.gitattributes`). To avoid spurious "
 - **Interface:** `AICommandFactory<A, C>` with `priority()`, `supports()`, and `createCommand()`
 - **Registry:** `AICommandFactoryRegistry` picks the factory by lowest priority value
 - **Key factories:**
-  - `ConversationHistoryAICommandFactory` (priority: 0) — builds commands with dialog history when metadata has `threadKey`
   - `DefaultAICommandFactory` (priority: LOWEST_PRECEDENCE) — fallback for simple commands
 
 ### 3. Command handler pattern
@@ -489,16 +487,7 @@ The repo uses **LF only** for text files (`.gitattributes`). To avoid spurious "
 User Input → CommandHandler → AICommandFactoryRegistry
     ↓
 Factory Selection:
-├─ threadKey in metadata? → ConversationHistoryAICommandFactory
-│   ├─ Load ConversationThread from DB
-│   ├─ Check if summarization needed (threshold: 70% of max tokens)
-│   ├─ ConversationContextBuilderService builds context:
-│   │   ├─ Load recent messages (window size)
-│   │   ├─ Include summary/memory bullets if exists
-│   │   └─ Estimate tokens and manage budget
-│   └─ Create ChatAICommand with message history
-│
-└─ No threadKey? → DefaultAICommandFactory (simple command)
+└─ DefaultAICommandFactory (simple command)
     ↓
 AIGatewayRegistry selects compatible gateway
     ↓
@@ -509,36 +498,33 @@ Save USER message → Process response → Save ASSISTANT message
 Return response to user
 ```
 
-## Dialog context modes
+## Dialog context (Spring AI ChatMemory)
 
-The system has two mutually exclusive modes controlled by `open-daimon.common.manual-conversation-history.enabled`:
-
-**Mode 1: Manual context building (`enabled: true`)**
-- `ConversationHistoryAICommandFactory` builds context manually
-- `ConversationContextBuilderService` loads messages from table `opendaimon_message`
-- Full control over token budget, window size, and summary integration
-- Use for custom context management logic
-
-**Mode 2: Spring AI ChatMemory (`enabled: false`)**
 - Uses Spring AI `MessageChatMemoryAdvisor` with custom `SummarizingChatMemory`
 - Messages stored in table `spring_ai_chat_memory`
 - Automatic dialog tracking by conversationId
-- Use for framework integration with Spring AI
-
-**Default:** The default for the application is **Spring AI ChatMemory** (`open-daimon.common.manual-conversation-history.enabled=false`). Manual mode (`enabled: true`) is for experiments and custom scenarios, not the primary configuration.
 
 ## Automatic dialog summarization
 
 **Long dialog handling:**
-- **Service:** `SummarizationService` (runs asynchronously)
-- **Trigger:** When `totalTokens >= summarization.maxContextTokens * summarization.summaryTriggerThreshold` (e.g. 70%)
+- **Service:** `SummarizationService` (synchronously in Spring AI path)
+- **Trigger:** `SummarizingChatMemory.get()` — when `spring_ai_chat_memory` message count reaches `history-window-size`
 - **Process:**
   1. Filter old messages (up to threshold)
   2. Build summarization prompt with existing summary
   3. Call AI with low temperature (0.3) to produce JSON: `{summary, memory_bullets}`
   4. Update `ConversationThread` with new summary and memory bullets
   5. Track `messagesAtLastSummarization` to avoid re-summarizing the same messages
-- **Integration:** On next context build, summary is used instead of old messages, keeping token count under control
+- **Integration:** On next context build, summary is injected as `SystemMessage`; `spring_ai_chat_memory` is cleared
+
+**Error handling — intentional design:**
+- If summarization AI call fails, `SummarizingChatMemory` throws `RuntimeException("Conversation summarization failed. Please start a new session (/newthread).")` — this is INTENTIONAL.
+- The error surfaces to the user as a prompt to start a new session (`/newthread`).
+- Do NOT silently swallow summarization failures (no `return false` fallback). The chat state after a failed summarization is inconsistent — history is not cleared, summary not written — continuing would give the model a corrupted context window.
+
+**User notification before summarization:**
+- `SummarizationStartedEvent` is published before summarization begins.
+- `TelegramSummarizationListener` sends a notification message to the user so they know summarization is in progress (not a hang).
 
 ## Streaming support
 
@@ -569,7 +555,7 @@ TelegramCommand.attachments = [Attachment]
     ↓
 AICommandFactoryRegistry.createCommand()
     ↓
-ConversationHistoryAICommandFactory / DefaultAICommandFactory
+DefaultAICommandFactory
     └─ Create ChatAICommand with attachments
     ↓
 SpringAIGateway.generateResponse()
@@ -588,10 +574,6 @@ Vision-capable model (e.g., GPT-4o, Claude 3)
 - `MinioFileStorageService` (opendaimon-common) — stores files in MinIO
 - `Attachment` record (opendaimon-common) — file metadata + byte data
 - `SpringAIGateway.createUserMessage()` — converts Attachment to Spring AI Media
-
-**Storing attachment references in history (manual-conversation-history mode):**
-- Table `message`, column `attachments` (JSONB): array of `{ storageKey, expiresAt, mimeType, filename }`. Reference and expiry (TTL from `open-daimon.common.storage.minio.ttl-hours`) are saved when saving the USER message (`TelegramMessageService.saveUserMessage` with attachments).
-- When building context (`ConversationContextBuilderService.buildContext`), for USER messages with non-empty `attachments` and non-expired `expiresAt`, images (mimeType image/*) are loaded from MinIO by `storageKey` and added as content parts (text + image_url with data:base64). If the file is expired or storage is disabled, only text is added. Attachments are available within the window until summarization and until TTL expires.
 
 ### PDF documents (RAG Pipeline Flow)
 

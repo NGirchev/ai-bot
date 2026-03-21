@@ -1,3 +1,4 @@
+# Profile "test": use @ActiveProfiles("test") on app tests (not for integration-test-only ITs).
 spring:
   autoconfigure:
     exclude:
@@ -7,32 +8,59 @@ spring:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
       - io.github.ngirchev.opendaimon.ai.springai.config.SpringAIAutoConfig
+  jpa:
+    hibernate:
+      ddl-auto: validate  # or none if using Flyway
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   ai:
     openai:
       api-key: mock-key
     ollama:
       base-url: http://localhost:11434
 
+# REST/UI off by default for tests (avoids RestFlyway without coreFlyway when Core is excluded).
+# RAG off: RAGAutoConfig is registered separately and needs an EMBEDDING model when enabled.
 open-daimon:
+  rest:
+    enabled: false
+  ui:
+    enabled: false
   telegram:
     enabled: true
   common:
+    storage:
+      enabled: false
     assistant-role: You are a helpful assistant
-    max-output-tokens: 1000
-    max-reasoning-tokens: 500
+    max-output-tokens: 4000
+    max-reasoning-tokens: 1500
     max-user-message-tokens: 4000
     max-total-prompt-tokens: 32000
     summarization:
-      max-context-tokens: 8000
-      summary-trigger-threshold: 0.7
-      keep-recent-messages: 5
+      message-window-size: 5
+      max-window-tokens: 16000
+      max-output-tokens: 2000
       prompt: "You are an assistant. Create a summary in JSON. Conversation:"
-    manual-conversation-history:
-      enabled: false
-      max-response-tokens: 4000
-      default-window-size: 5
-      include-system-prompt: true
-      token-estimation-chars-per-token: 4
+    chat-routing:
+      ADMIN:
+        max-price: 0.5
+        required-capabilities:
+          - AUTO
+        optional-capabilities: []
+      VIP:
+        max-price: 0.5
+        required-capabilities:
+          - CHAT
+        optional-capabilities:
+          - TOOL_CALLING
+          - WEB
+      REGULAR:
+        max-price: 0.0
+        required-capabilities:
+          - CHAT
+        optional-capabilities: []
   ai:
     openrouter:
       enabled: false
@@ -40,3 +68,8 @@ open-daimon:
       enabled: false
     spring-ai:
       enabled: false
+      rag:
+        enabled: false
+      openrouter-auto-rotation:
+        models:
+          enabled: false

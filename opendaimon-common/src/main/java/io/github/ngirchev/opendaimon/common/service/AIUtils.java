@@ -43,6 +43,14 @@ public class AIUtils {
      */
     private static final String OPENROUTER_EMPTY_STREAM_EXCEPTION_CLASS =
             "io.github.ngirchev.opendaimon.ai.springai.retry.OpenRouterEmptyStreamException";
+    /**
+     * Jackson exception class name: thrown when finish_reason has an unknown enum value (e.g. "error" from Gemini).
+     * Normalized by OpenRouterSseNormalizingCustomizer, but guard here to suppress full stack trace if it leaks.
+     */
+    private static final String JACKSON_INVALID_FORMAT_EXCEPTION_CLASS =
+            "com.fasterxml.jackson.databind.exc.InvalidFormatException";
+    /** Prefix of the message thrown when a model calls an unknown tool (e.g. Gemini Code Execution "run"). */
+    private static final String NO_TOOL_CALLBACK_MESSAGE_PREFIX = "No ToolCallback found for tool name:";
     private static final String LOG_ERROR_PROCESSING_STREAMING_RESPONSE = "Error processing streaming response: {}";
     private static final AtomicInteger extractTextEmptyLogCount = new AtomicInteger(0);
     private static final int EXTRACT_TEXT_EMPTY_LOG_LIMIT = 3;
@@ -70,11 +78,22 @@ public class AIUtils {
             if (OPENROUTER_EMPTY_STREAM_EXCEPTION_CLASS.equals(t.getClass().getName())) {
                 return true;
             }
-            if (t instanceof WebClientResponseException) {
+            if (JACKSON_INVALID_FORMAT_EXCEPTION_CLASS.equals(t.getClass().getName())) {
                 return true;
             }
-            if (t instanceof DocumentContentNotExtractableException) {
-                return true;
+            Throwable finalT = t;
+            switch (t) {
+                case IllegalStateException illegalStateException when finalT.getMessage() != null && finalT.getMessage().startsWith(NO_TOOL_CALLBACK_MESSAGE_PREFIX) -> {
+                    return true;
+                }
+                case WebClientResponseException webClientResponseException -> {
+                    return true;
+                }
+                case DocumentContentNotExtractableException documentContentNotExtractableException -> {
+                    return true;
+                }
+                default -> {
+                }
             }
             t = t.getCause();
         }
@@ -676,7 +695,8 @@ public class AIUtils {
 
     public static Optional<String> extractText(ChatResponse response) {
         try {
-            Optional<String> result = Optional.ofNullable(response.getResult().getOutput().getText()).filter(StringUtils::hasLength);
+            Optional<String> result = Optional.ofNullable(response.getResult().getOutput().getText())
+                    .filter(StringUtils::hasLength);
             if (result.isEmpty()) {
                 logExtractTextEmptyDiagnostic(response);
             }

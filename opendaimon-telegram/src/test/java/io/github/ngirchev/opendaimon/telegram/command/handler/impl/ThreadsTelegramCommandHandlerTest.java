@@ -24,6 +24,7 @@ import io.github.ngirchev.opendaimon.telegram.command.TelegramCommandType;
 import io.github.ngirchev.opendaimon.telegram.model.TelegramUser;
 import io.github.ngirchev.opendaimon.telegram.service.TelegramUserService;
 import io.github.ngirchev.opendaimon.telegram.service.TypingIndicatorService;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
@@ -248,7 +249,7 @@ class ThreadsTelegramCommandHandlerTest {
 
         verify(threadService).activateThread(user, thread);
         verify(telegramBot, atLeast(1)).execute(any(org.telegram.telegrambots.meta.api.methods.BotApiMethod.class));
-        verify(telegramBot).sendMessage(eq(CHAT_ID), anyString(), isNull());
+        verify(telegramBot).sendMessage(eq(CHAT_ID), anyString(), isNull(), isNull(ReplyKeyboard.class));
     }
 
     @Test

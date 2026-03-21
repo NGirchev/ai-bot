@@ -76,9 +76,9 @@ class SpringAIGatewayDocumentRagTest {
 
         SpringAIModelConfig modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
-        modelConfig.setCapabilities(List.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
-        when(springAIModelRegistry.getCandidatesByCapabilities(any(), any())).thenReturn(List.of(modelConfig));
+        when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of(modelConfig));
 
         when(chatService.streamChat(any(), any(), any(), any())).thenReturn(new SpringAIStreamResponse(Flux.empty()));
 
@@ -121,6 +121,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT),
+                Set.of(),
                 0.35,
                 1000,
                 null,
@@ -160,6 +161,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(),
                 0.35,
                 1000,
                 null,
@@ -217,6 +219,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(),
                 0.35,
                 1000,
                 null,
@@ -285,6 +288,7 @@ class SpringAIGatewayDocumentRagTest {
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
                 Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(),
                 0.35,
                 1000,
                 null,
