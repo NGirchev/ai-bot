@@ -1,7 +1,7 @@
 # OpenDaimon
 
 [![Build Status](https://github.com/NGirchev/open-daimon/actions/workflows/maven.yml/badge.svg)](https://github.com/NGirchev/open-daimon/actions)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/opendaimon-parent)](https://central.sonatype.com/namespace/io.github.ngirchev)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/opendaimon)](https://central.sonatype.com/namespace/io.github.ngirchev)
 [![SonarCloud Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_open-daimon&metric=ncloc)](https://sonarcloud.io/summary/new_code?project=NGirchev_open-daimon)
 [![SonarCloud Maintainability](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_open-daimon&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?project=NGirchev_open-daimon)
 [![SonarCloud Code Smells](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_open-daimon&metric=code_smells)](https://sonarcloud.io/summary/new_code?project=NGirchev_open-daimon)
@@ -266,6 +266,22 @@ Use the assembled application module (includes Telegram, REST, UI, Spring AI, ga
 ```
 
 ## Quick start
+
+### Docker (fastest)
+
+Pull and run the latest published image — no build needed:
+
+```bash
+# Pull the image
+docker pull ghcr.io/ngirchev/open-daimon:latest
+
+# Run with your environment variables
+docker run -p 8080:8080 --env-file .env ghcr.io/ngirchev/open-daimon:latest
+```
+
+Specific version: `docker pull ghcr.io/ngirchev/open-daimon:1.2.3`
+
+> **Note:** The app requires PostgreSQL, MinIO, and other services. Use `docker-compose.yml` for a full local setup (see below).
 
 ### Running the app (no Java experience)
 
