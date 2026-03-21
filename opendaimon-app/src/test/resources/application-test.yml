@@ -31,6 +31,8 @@ open-daimon:
   telegram:
     enabled: true
   common:
+    storage:
+      enabled: false
     assistant-role: You are a helpful assistant
     max-output-tokens: 4000
     max-reasoning-tokens: 1500

@@ -191,6 +191,7 @@ class SpringAIGatewayStreamingRealContextIT {
             "io.github.ngirchev.opendaimon.telegram.config.TelegramAutoConfig",
             "io.github.ngirchev.opendaimon.rest.config.RestAutoConfig",
             "io.github.ngirchev.opendaimon.ui.config.UIAutoConfig",
+            "io.github.ngirchev.opendaimon.common.storage.config.StorageAutoConfig",
             "org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration",
             "org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration",
             "org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration",

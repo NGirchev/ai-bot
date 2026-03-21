@@ -68,8 +68,6 @@ import io.github.ngirchev.opendaimon.common.service.SummarizationService;
 @AutoConfiguration
 @AutoConfigureAfter(name = {
     "io.github.ngirchev.opendaimon.common.config.CoreAutoConfig",
-    "org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration",
-    "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration",
     "org.springframework.ai.model.chat.memory.autoconfigure.ChatMemoryAutoConfiguration"
 })
 @AutoConfigureBefore(name = "org.springframework.ai.model.tool.autoconfigure.ToolCallingAutoConfiguration")

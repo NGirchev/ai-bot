@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 @SpringBootConfiguration
 @EnableAutoConfiguration(excludeName = {
         "io.github.ngirchev.opendaimon.ai.springai.config.SpringAIAutoConfig",
+        "io.github.ngirchev.opendaimon.common.storage.config.StorageAutoConfig",
         "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration",
         "org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration",
         "org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration",

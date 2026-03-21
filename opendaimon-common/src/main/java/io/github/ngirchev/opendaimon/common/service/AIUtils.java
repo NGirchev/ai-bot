@@ -81,8 +81,9 @@ public class AIUtils {
             if (JACKSON_INVALID_FORMAT_EXCEPTION_CLASS.equals(t.getClass().getName())) {
                 return true;
             }
+            Throwable finalT = t;
             switch (t) {
-                case IllegalStateException illegalStateException when t.getMessage() != null && t.getMessage().startsWith(NO_TOOL_CALLBACK_MESSAGE_PREFIX) -> {
+                case IllegalStateException illegalStateException when finalT.getMessage() != null && finalT.getMessage().startsWith(NO_TOOL_CALLBACK_MESSAGE_PREFIX) -> {
                     return true;
                 }
                 case WebClientResponseException webClientResponseException -> {

@@ -14,7 +14,7 @@ open-daimon:
           cooldown404: 1h
       models:
         list:
-          - name: "qwen3.5"
+          - name: "gemma3:1b"
             capabilities:
               - AUTO
               - CHAT
@@ -26,7 +26,7 @@ open-daimon:
             priority: 1
             max-reasoning-tokens: 0  # Ollama does not support reasoning parameter
             think: false  # Disable Qwen3 thinking mode — prevents token budget exhaustion that causes empty responses
-          - name: "gemma3:1b"
+          - name: "nomic-embed-text:v1.5"
             capabilities:
               - EMBEDDING
             provider-type: OLLAMA
