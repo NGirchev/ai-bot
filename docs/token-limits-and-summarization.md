@@ -161,10 +161,27 @@ max-output-tokens: 8000
 
 ---
 
+## Саммаризация и Reasoning
+
+⚠️ **Важно:** Саммаризация **не использует reasoning параметр** (`max-reasoning-tokens`).
+
+**Почему?**
+- Саммаризация — это простое резюме, не требующее extended reasoning
+- Small free-модели (gemma-3-12b-it:free) с `max_price=0.5` падают, если запросить reasoning
+- Reasoning токены = 1500 + completion токены = 2000 могут превысить бюджет малых моделей
+
+**Как это работает в коде:**
+- `SummarizationService` явно передаёт `maxReasoningTokens=null` при создании `ChatAICommand`
+- `SpringAIPromptFactory.resolveReasoning()` не добавляет reasoning в запрос
+- Результат: модель получает чистый запрос без reasoning, работает на free-моделях
+
+---
+
 ## Связанные файлы
 
 - `CoreCommonProperties.java` — валидация всех настроек
 - `SummarizingChatMemory.java` — логика двух триггеров
 - `ConversationThreadService.java` — счётчик `totalTokens` (сбрасывается после саммаризации)
 - `PersistentKeyboardService.java` — расчёт % для кнопки Telegram
+- `SummarizationService.java` — создание `ChatAICommand` без reasoning для саммаризации
 - `application.yml` — все значения настроек

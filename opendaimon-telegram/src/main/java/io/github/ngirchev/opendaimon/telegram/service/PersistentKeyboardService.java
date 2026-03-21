@@ -62,6 +62,9 @@ public class PersistentKeyboardService {
             String contextLabel = buildContextLabel(thread);
             String statusText = statusModelLabel + "  ·  " + contextLabel;
             SendMessage msg = new SendMessage(chatId.toString(), statusText);
+            markup.setSelective(true);
+            markup.setResizeKeyboard(true);
+            markup.setOneTimeKeyboard(false);
             msg.setReplyMarkup(markup);
             telegramBotProvider.getObject().execute(msg);
         } catch (Exception e) {

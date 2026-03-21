@@ -79,7 +79,7 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
                     yield Set.of(AUTO);
                 }
                 case VIP -> {
-                    body.put(MAX_PRICE, 0);
+                    body.put(MAX_PRICE, 0.50);
                     // TOOL_CALLING and WEB are preferred but not required — fall back to any CHAT model if needed
                     optionalModelCapabilities = Set.of(TOOL_CALLING, WEB);
                     yield Set.of(CHAT);

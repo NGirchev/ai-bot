@@ -11,7 +11,9 @@ import io.github.ngirchev.opendaimon.common.model.ConversationThread;
 import io.github.ngirchev.opendaimon.common.model.OpenDaimonMessage;
 import io.github.ngirchev.opendaimon.common.model.MessageRole;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -121,8 +123,13 @@ public class SummarizationService {
 
     private SummaryResult callAiAndParseSummaryResult(String dialogTextStr) {
         String summarizationPrompt = coreCommonProperties.getSummarization().getPrompt();
+        // Summarization does not need reasoning — disable it explicitly to avoid
+        // failures on small free models with tight budget constraints (max_price=0.5).
+        // Pass empty body + null for maxReasoningTokens via metadata to prevent reasoning from being added.
+        Map<String, String> summarizationMetadata = new HashMap<>();
         ChatAICommand summaryCommand = new ChatAICommand(
-                Set.of(SUMMARIZATION), 0.3, coreCommonProperties.getSummarization().getMaxOutputTokens(), summarizationPrompt, dialogTextStr);
+                Set.of(SUMMARIZATION), Set.of(), 0.3, coreCommonProperties.getSummarization().getMaxOutputTokens(), null,
+                summarizationPrompt, dialogTextStr, false, summarizationMetadata, new HashMap<>(), List.of());
         AIGateway aiGateway = aiGatewayRegistry.getSupportedAiGateways(summaryCommand).stream()
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("No AI gateway for summarization"));
