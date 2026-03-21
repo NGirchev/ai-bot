@@ -1,7 +1,7 @@
 # OpenDaimon
 
 [![Build Status](https://github.com/NGirchev/open-daimon/actions/workflows/maven.yml/badge.svg)](https://github.com/NGirchev/open-daimon/actions)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/opendaimon-parent)](https://central.sonatype.com/namespace/io.github.ngirchev)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ngirchev/opendaimon)](https://central.sonatype.com/namespace/io.github.ngirchev)
 [![SonarCloud Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_open-daimon&metric=ncloc)](https://sonarcloud.io/summary/new_code?project=NGirchev_open-daimon)
 [![SonarCloud Maintainability](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_open-daimon&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?project=NGirchev_open-daimon)
 [![SonarCloud Code Smells](https://sonarcloud.io/api/project_badges/measure?project=NGirchev_open-daimon&metric=code_smells)](https://sonarcloud.io/summary/new_code?project=NGirchev_open-daimon)
