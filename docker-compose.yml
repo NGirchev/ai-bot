@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     container_name: open-daimon-app
     ports:
       - "8080:8080"
@@ -24,6 +26,8 @@ services:
       - SERP_API_KEY=${SERP_API_KEY:-}
       # Database (use service name from docker-compose)
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-opendaimon}
+      # MinIO (use service name from docker-compose)
+      - MINIO_ENDPOINT=http://minio:9000
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     depends_on:
