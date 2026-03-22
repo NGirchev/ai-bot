@@ -1,5 +1,15 @@
-package io.github.ngirchev.opendaimon.rest.repository;
+package io.github.ngirchev.opendaimon.it.rest.repository;
 
+import io.github.ngirchev.opendaimon.common.config.CoreFlywayConfig;
+import io.github.ngirchev.opendaimon.common.config.CoreJpaConfig;
+import io.github.ngirchev.opendaimon.common.model.ConversationThread;
+import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
+import io.github.ngirchev.opendaimon.rest.config.RestFlywayConfig;
+import io.github.ngirchev.opendaimon.rest.config.RestJpaConfig;
+import io.github.ngirchev.opendaimon.rest.model.RestUser;
+import io.github.ngirchev.opendaimon.rest.repository.RestUserRepository;
+import io.github.ngirchev.opendaimon.test.TestDatabaseConfiguration;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -8,15 +18,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.persistence.EntityManager;
-import io.github.ngirchev.opendaimon.common.config.CoreJpaConfig;
-import io.github.ngirchev.opendaimon.common.config.CoreFlywayConfig;
-import io.github.ngirchev.opendaimon.common.model.ConversationThread;
-import io.github.ngirchev.opendaimon.common.repository.ConversationThreadRepository;
-import io.github.ngirchev.opendaimon.rest.config.RestJpaConfig;
-import io.github.ngirchev.opendaimon.rest.config.RestFlywayConfig;
-import io.github.ngirchev.opendaimon.rest.model.RestUser;
-import io.github.ngirchev.opendaimon.test.TestDatabaseConfiguration;
 
 import java.time.OffsetDateTime;
 import java.util.List;
