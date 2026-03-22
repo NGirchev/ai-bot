@@ -19,42 +19,8 @@ function checkCommand(cmd) {
   }
 }
 
-async function checkOllama(url) {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    return res.status < 500;
-  } catch {
-    return false;
-  }
-}
-
-function pullOllamaModel(model) {
-  return new Promise((resolve) => {
-    console.log(`  Pulling ${model} (this may take a few minutes)...`);
-    const proc = spawn('ollama', ['pull', model], { stdio: 'inherit' });
-    proc.on('close', resolve);
-    proc.on('error', () => {
-      console.log(`  ollama CLI not found — pull manually: ollama pull ${model}`);
-      resolve();
-    });
-  });
-}
-
 function genPassword() {
   return randomBytes(16).toString('hex');
-}
-
-function parseEnv(filePath) {
-  if (!existsSync(filePath)) return {};
-  const result = {};
-  for (const line of readFileSync(filePath, 'utf8').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const idx = trimmed.indexOf('=');
-    if (idx === -1) continue;
-    result[trimmed.slice(0, idx).trim()] = trimmed.slice(idx + 1).trim();
-  }
-  return result;
 }
 
 function buildEnv(cfg) {
@@ -99,9 +65,6 @@ function buildEnv(cfg) {
     'REST_ACCESS_VIP_EMAILS=',
     'REST_ACCESS_REGULAR_EMAILS=',
     '',
-    '# Spring profiles (local = load application-local.yml)',
-    'SPRING_PROFILES_ACTIVE=local',
-    '',
     '# Active Docker Compose service profiles (comma-separated)',
     '# Available: monitoring, logging, storage',
     `COMPOSE_PROFILES=${profiles}`,
@@ -145,7 +108,7 @@ function buildAppLocalYml(cfg) {
     '          enabled: false',
     '      models:',
     '        list:',
-    '          - name: "gemma3:1b"',
+    '          - name: "qwen2.5:7b"',
     '            capabilities:',
     '              - AUTO',
     '              - CHAT',
@@ -184,49 +147,39 @@ async function main() {
   console.log('Docker found.');
 
   const envPath = join(TARGET_DIR, '.env');
-  const prev = parseEnv(envPath);
-  const isUpdate = Object.keys(prev).length > 0;
-
-  if (isUpdate) {
-    console.log('Found existing config — pre-filling values. Press Enter to keep each value.\n');
+  if (existsSync(envPath)) {
+    const overwrite = await confirm({ message: '.env already exists. Overwrite it?', default: false });
+    if (!overwrite) {
+      console.log('Aborted. Delete .env manually and re-run.');
+      process.exit(0);
+    }
   }
-
-  // helper: mask secret for display (show first 4 chars + ***)
-  const mask = (v) => (v ? v.slice(0, 4) + '***' : '');
 
   // ── Telegram ──────────────────────────────────────────────────────────────
   console.log('\n── Telegram ──────────────────────────────────');
   console.log('   See docs at https://github.com/NGirchev/open-daimon/blob/master/docs/setup-telegram.md');
   console.log('');
 
-  const telegramTokenRaw = await password({
-    message: prev.TELEGRAM_TOKEN
-      ? `Bot token (leave blank to keep ${mask(prev.TELEGRAM_TOKEN)}):`
-      : 'Bot token (from @BotFather):',
-    validate: (v) => v.trim().length > 0 || !!prev.TELEGRAM_TOKEN || 'Required',
+  const telegramToken = await password({
+    message: 'Bot token (from @BotFather):',
+    validate: (v) => v.trim().length > 0 || 'Required',
   });
-  const telegramToken = telegramTokenRaw.trim() || prev.TELEGRAM_TOKEN || '';
 
   const telegramUsername = await input({
     message: 'Bot username (without @, e.g. my_ai_bot):',
-    default: prev.TELEGRAM_USERNAME || '',
     validate: (v) => v.trim().length > 0 || 'Required',
   });
 
   const adminId = await input({
     message: 'Your Telegram user ID (send any message to @userinfobot):',
-    default: prev.ADMIN_TELEGRAM_ID || '',
     validate: (v) => /^\d+$/.test(v.trim()) || 'Must be a number',
   });
 
   // ── AI Provider ───────────────────────────────────────────────────────────
   console.log('\n── AI Provider ───────────────────────────────');
 
-  const prevProvider = prev.OPENROUTER_KEY ? 'openrouter' : prev.OLLAMA_BASE_URL ? 'ollama' : null;
-
   const provider = await select({
     message: 'Choose AI provider:',
-    default: prevProvider ?? 'openrouter',
     choices: [
       {
         name: 'OpenRouter (cloud — free models available, no GPU needed)',
@@ -244,84 +197,48 @@ async function main() {
 
   if (provider === 'openrouter') {
     console.log('   Get a free API key at https://openrouter.ai/keys');
-    const openrouterKeyRaw = await password({
-      message: prev.OPENROUTER_KEY
-        ? `OpenRouter API key (leave blank to keep ${mask(prev.OPENROUTER_KEY)}):`
-        : 'OpenRouter API key:',
-      validate: (v) => v.trim().length > 0 || !!prev.OPENROUTER_KEY || 'Required',
+    openrouterKey = await password({
+      message: 'OpenRouter API key:',
+      validate: (v) => v.trim().length > 0 || 'Required',
     });
-    openrouterKey = openrouterKeyRaw.trim() || prev.OPENROUTER_KEY || '';
   } else {
     console.log('   Make sure Ollama is running: ollama serve');
+    console.log('   Recommended model: ollama pull qwen2.5:7b');
     ollamaUrl = await input({
       message: 'Ollama base URL:',
-      default: prev.OLLAMA_BASE_URL || 'http://localhost:11434',
+      default: 'http://localhost:11434',
     });
-
-    process.stdout.write('   Checking Ollama connection... ');
-    const ollamaAlive = await checkOllama(ollamaUrl.trim());
-    if (ollamaAlive) {
-      console.log('OK');
-      const doPullModel = await confirm({
-        message: 'Pull default model gemma3:1b now? (~815 MB, required for Ollama mode)',
-        default: true,
-      });
-      if (doPullModel) {
-        await pullOllamaModel('gemma3:1b');
-      }
-    } else {
-      console.log('UNREACHABLE');
-      console.log('   ⚠  Ollama is not running at ' + ollamaUrl.trim());
-      console.log('   Start it with: ollama serve');
-      console.log('   Then manually pull the model: ollama pull gemma3:1b');
-      const continueAnyway = await confirm({
-        message: 'Continue setup anyway?',
-        default: true,
-      });
-      if (!continueAnyway) process.exit(0);
-    }
   }
 
   // ── Web Search (optional) ─────────────────────────────────────────────────
   console.log('\n── Web Search (optional) ─────────────────────');
-  const wantSerper = await confirm({
-    message: 'Add Serper API key for web search?',
-    default: !!prev.SERPER_KEY,
-  });
-  let serperKey = prev.SERPER_KEY || '';
+  const wantSerper = await confirm({ message: 'Add Serper API key for web search?', default: false });
+  let serperKey = '';
   if (wantSerper) {
     console.log('   Get a free key (2500 searches) at https://serper.dev');
-    const serperKeyRaw = await password({
-      message: prev.SERPER_KEY
-        ? `Serper API key (leave blank to keep ${mask(prev.SERPER_KEY)}):`
-        : 'Serper API key:',
-    });
-    serperKey = serperKeyRaw.trim() || prev.SERPER_KEY || '';
+    serperKey = await password({ message: 'Serper API key:' });
   }
 
   // ── Optional Services ─────────────────────────────────────────────────────
   console.log('\n── Optional Services ─────────────────────────');
-  const prevProfiles = prev.COMPOSE_PROFILES ? prev.COMPOSE_PROFILES.split(',').filter(Boolean) : [];
   const services = await checkbox({
     message: 'Which optional services to start?',
     choices: [
-      { name: 'Storage — MinIO for image/file uploads', value: 'storage', checked: prevProfiles.includes('storage') || !isUpdate },
-      { name: 'Monitoring — Prometheus + Grafana', value: 'monitoring', checked: prevProfiles.includes('monitoring') },
-      { name: 'Logging — Elasticsearch + Kibana (~2 GB RAM)', value: 'logging', checked: prevProfiles.includes('logging') },
+      { name: 'Monitoring — Prometheus + Grafana (recommended)', value: 'monitoring', checked: true },
+      { name: 'Logging — Elasticsearch + Kibana (~2 GB RAM)', value: 'logging', checked: false },
+      { name: 'Storage — MinIO for image/file uploads', value: 'storage', checked: false },
     ],
   });
 
   // ── Database ──────────────────────────────────────────────────────────────
   console.log('\n── Database ──────────────────────────────────');
   let dbPassword = await input({
-    message: prev.POSTGRES_PASSWORD
-      ? `PostgreSQL password (leave blank to keep existing):`
-      : 'PostgreSQL password (leave blank to auto-generate):',
+    message: 'PostgreSQL password (leave blank to auto-generate):',
     default: '',
   });
   if (!dbPassword.trim()) {
-    dbPassword = prev.POSTGRES_PASSWORD || genPassword();
-    if (!prev.POSTGRES_PASSWORD) console.log(`   Generated password: ${dbPassword}`);
+    dbPassword = genPassword();
+    console.log(`   Generated password: ${dbPassword}`);
   }
 
   const cfg = {
@@ -359,21 +276,20 @@ async function main() {
   writeFileSync(join(TARGET_DIR, 'application-local.yml.example'), exampleTemplate, 'utf8');
   console.log('  application-local.yml.example');
 
-  // ── Start the stack ───────────────────────────────────────────────────────
+  // ── Pull images ───────────────────────────────────────────────────────────
   console.log('');
-  const composeCmd = checkCommand('docker compose') ? ['docker', 'compose'] : ['docker-compose'];
-
-  const doStart = await confirm({
-    message: 'Start the stack now? (docker compose up -d)',
-    default: true,
+  const doPull = await confirm({
+    message: 'Pull Docker images now? (recommended, takes a few minutes)',
+    default: false,
   });
-  if (doStart) {
-    console.log('Starting stack...');
-    const up = spawn(composeCmd[0], [...composeCmd.slice(1), 'up', '-d'], {
+  if (doPull) {
+    console.log('Pulling images...');
+    const composeCmd = checkCommand('docker compose') ? ['docker', 'compose'] : ['docker-compose'];
+    const pull = spawn(composeCmd[0], [...composeCmd.slice(1), 'pull'], {
       stdio: 'inherit',
       cwd: TARGET_DIR,
     });
-    await new Promise((resolve) => up.on('close', resolve));
+    await new Promise((resolve) => pull.on('close', resolve));
   }
 
   // ── Summary ───────────────────────────────────────────────────────────────
@@ -382,26 +298,19 @@ async function main() {
   console.log('║            Setup complete!               ║');
   console.log('╚══════════════════════════════════════════╝');
   console.log('');
-  if (!doStart) {
-    console.log('Next steps:');
-    console.log('');
-    console.log('  1. Review generated files:');
-    console.log('       .env                     — secrets and credentials');
-    console.log('       docker-compose.yml        — service definitions');
-    console.log('       application-local.yml     — app overrides (edit as needed)');
-    console.log('');
-    console.log('  2. Start the stack:');
-    console.log('       docker compose up -d');
-    console.log('');
-  } else {
-    console.log('The stack is starting. To check logs:');
-    console.log('');
-  }
-  console.log('  Watch logs:');
+  console.log('Next steps:');
+  console.log('');
+  console.log('  1. Review generated files:');
+  console.log('       .env                     — secrets and credentials');
+  console.log('       docker-compose.yml        — service definitions');
+  console.log('       application-local.yml     — app overrides (edit as needed)');
+  console.log('');
+  console.log('  2. Start the stack:');
+  console.log('       docker compose up -d');
+  console.log('');
+  console.log('  3. Watch logs:');
   console.log('       docker compose logs -f opendaimon-app');
   console.log('');
-  console.log('  ── URLs ──────────────────────────────────────');
-  console.log('  App:        http://localhost:8080');
   console.log('  Swagger UI: http://localhost:8080/swagger-ui/index.html');
   if (services.includes('monitoring')) {
     console.log('  Grafana:    http://localhost:3000  (admin / admin123456)');
