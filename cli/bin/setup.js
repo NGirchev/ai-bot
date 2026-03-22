@@ -9,6 +9,9 @@ import { randomBytes } from 'crypto';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = join(__dirname, '..', 'templates');
 const TARGET_DIR = process.cwd();
+const PKG_VERSION = JSON.parse(
+  readFileSync(join(__dirname, '..', 'package.json'), 'utf8')
+).version;
 
 function checkCommand(cmd) {
   try {
@@ -342,7 +345,8 @@ async function main() {
   writeFileSync(envPath, buildEnv(cfg), 'utf8');
   console.log('  .env');
 
-  const composeTemplate = readFileSync(join(TEMPLATES_DIR, 'docker-compose.yml'), 'utf8');
+  const composeTemplate = readFileSync(join(TEMPLATES_DIR, 'docker-compose.yml'), 'utf8')
+    .replace('ghcr.io/ngirchev/open-daimon:latest', `ghcr.io/ngirchev/open-daimon:${PKG_VERSION}`);
   writeFileSync(join(TARGET_DIR, 'docker-compose.yml'), composeTemplate, 'utf8');
   console.log('  docker-compose.yml');
 
