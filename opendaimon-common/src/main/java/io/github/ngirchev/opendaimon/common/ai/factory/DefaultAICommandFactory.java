@@ -73,7 +73,7 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             String attachmentTypes = attachments.stream().map(a -> a.type().toString()).toList().toString();
             UserPriority priority = Optional.ofNullable(userPriorityService.getUserPriority(command.userId()))
                     .orElse(UserPriority.REGULAR);
-            log.info("Creating ChatAICommand: userText='{}', attachmentsCount={}, attachmentTypes={}, priority={}",
+            log.debug("Creating ChatAICommand: userText='{}', attachmentsCount={}, attachmentTypes={}, priority={}",
                     chatCommand.userText(), attachments.size(), attachmentTypes, priority);
             metadata.put(AICommand.USER_PRIORITY_FIELD, priority.name());
             Map<String, Object> body = new HashMap<>();
@@ -97,13 +97,8 @@ public class DefaultAICommandFactory implements AICommandFactory<AICommand, ICom
             // Add VISION dynamically if there are images
             Set<ModelCapabilities> modelCapabilities = addVisionIfNeeded(baseModelCapabilities, attachments);
             String routingModelLabel = StringUtils.hasText(fixedModelId) ? fixedModelId : "(auto)";
-            log.info(
-                    "Chat routing: priority={}, preferredModelId={}, maxPrice={}, requiredCapabilities={}, optionalCapabilities={}",
-                    priority,
-                    routingModelLabel,
-                    body.get(MAX_PRICE),
-                    modelCapabilities,
-                    optionalModelCapabilities);
+            log.info("[{}] model={}, maxPrice={}, caps={}, attachments={}",
+                    priority, routingModelLabel, body.get(MAX_PRICE), modelCapabilities, attachments.size());
 
             // Temperature 0.35 for general assistant (recommended range: 0.3-0.4)
             String systemRole = metadata.get(ROLE_FIELD);
