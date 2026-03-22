@@ -1,9 +1,7 @@
 services:
   # OpenDaimon application
   opendaimon-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/ngirchev/open-daimon:latest
     container_name: open-daimon-app
     ports:
       - "8080:8080"
@@ -14,7 +12,7 @@ services:
       - TELEGRAM_USERNAME=${TELEGRAM_USERNAME}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       # Ollama on host (use host.docker.internal to reach host from container)
-      - SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - SPRING_AI_OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       # Admin
       - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
       - ADMIN_REST_EMAIL=${ADMIN_REST_EMAIL:-}
@@ -26,6 +24,16 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-opendaimon}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # User Access
+      - TELEGRAM_ACCESS_ADMIN_IDS=${TELEGRAM_ACCESS_ADMIN_IDS:-}
+      - TELEGRAM_ACCESS_ADMIN_CHANNELS=${TELEGRAM_ACCESS_ADMIN_CHANNELS:-}
+      - TELEGRAM_ACCESS_VIP_IDS=${TELEGRAM_ACCESS_VIP_IDS:-}
+      - TELEGRAM_ACCESS_VIP_CHANNELS=${TELEGRAM_ACCESS_VIP_CHANNELS:-}
+      - TELEGRAM_ACCESS_REGULAR_IDS=${TELEGRAM_ACCESS_REGULAR_IDS:-}
+      - TELEGRAM_ACCESS_REGULAR_CHANNELS=${TELEGRAM_ACCESS_REGULAR_CHANNELS:-}
+      - REST_ACCESS_ADMIN_EMAILS=${REST_ACCESS_ADMIN_EMAILS:-}
+      - REST_ACCESS_VIP_EMAILS=${REST_ACCESS_VIP_EMAILS:-}
+      - REST_ACCESS_REGULAR_EMAILS=${REST_ACCESS_REGULAR_EMAILS:-}
       # Additional config (application-local.yml mounted below)
       - SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:/app/config/application-local.yml
     volumes:
@@ -142,30 +150,6 @@ services:
     restart: unless-stopped
     networks:
       - open-daimon-network
-
-#  metricbeat:
-#    image: docker.elastic.co/beats/metricbeat:8.12.0
-#    container_name: open-daimon-metricbeat
-#    user: root
-#    privileged: true
-#    volumes:
-#      - ./metricbeat.yml:/tmp/metricbeat.yml:ro
-#      - /var/run/docker.sock:/var/run/docker.sock:ro
-#    environment:
-#      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-#    command:
-#      - sh
-#      - -c
-#      - |
-#        cp /tmp/metricbeat.yml /usr/share/metricbeat/metricbeat.yml &&
-#        chown root:root /usr/share/metricbeat/metricbeat.yml &&
-#        chmod 600 /usr/share/metricbeat/metricbeat.yml &&
-#        exec metricbeat -e -c /usr/share/metricbeat/metricbeat.yml
-#    depends_on:
-#      - elasticsearch
-#    restart: unless-stopped
-#    networks:
-#      - open-daimon-network
 
 volumes:
   grafana-storage:

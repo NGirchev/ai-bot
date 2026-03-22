@@ -15,6 +15,32 @@
 [![Spring Boot 3.3.3](https://img.shields.io/badge/Spring%20Boot-3.3.3-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/github/license/NGirchev/open-daimon)](https://github.com/NGirchev/open-daimon/blob/master/LICENSE)
 
+## Quick Setup
+
+**Option 1 — One command (recommended):**
+
+```bash
+mkdir my-bot && cd my-bot
+npx @ngirchev/open-daimon
+```
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) and Node.js 18+.
+The wizard configures `.env`, selects optional services, and generates a ready-to-run `docker-compose.yml`.
+
+Before running the wizard:
+- [Create a Telegram bot](docs/setup-telegram.md) — get a token from @BotFather and your user ID from @userinfobot
+- [Get an OpenRouter API key](docs/setup-openrouter.md) — or skip if you plan to use Ollama locally
+
+After the wizard completes:
+```bash
+docker compose up -d
+docker compose logs -f opendaimon-app
+```
+
+**Option 2 — Manual setup (after git clone):** See [Quick start](#quick-start) below.
+
+---
+
 **OpenDaimon** (formerly **ai-bot**) is a multi-module Java platform for building AI-powered chat agents and chatbots. It connects to various AI providers via **Spring AI** (OpenRouter, Ollama) and exposes them through Telegram, REST API, and Web UI. Use it as a library to assemble your own pipelines and integrations, or run the full app as a private, self-hosted chat assistant.
 
 ### Who it's for
@@ -48,6 +74,7 @@ Java/Spring teams building conversational AI or internal bots; developers who wa
 
 ## Table of contents
 
+- [Quick Setup](#quick-setup) — [npx wizard](#quick-setup)
 - [Who it's for](#who-its-for)
 - [Why OpenDaimon?](#why-opendaimon) — [For developers](#for-developers-and-teams), [For end users](#for-end-users-self-hosted), [Technical highlights](#technical-highlights)
 - [Features](#features)
@@ -343,6 +370,11 @@ For local run without Docker Compose you can also `export` variables in the shel
 
 1. **Create `.env`** from [.env.example](.env.example) and set required values (see [Environment variables](#environment-variables) above).
 
+   Create `application-local.yml` for app overrides (optional but recommended):
+   ```bash
+   cp application-local.yml.example application-local.yml
+   ```
+
 2. **Build the project:**
    ```bash
    mvn clean package -DskipTests
@@ -543,6 +575,12 @@ File -> Invalidate Caches / Restart
 
 ## Documentation
 
+### Setup guides
+- **[docs/setup-telegram.md](docs/setup-telegram.md)** — Create a Telegram bot and get your user ID
+- **[docs/setup-openrouter.md](docs/setup-openrouter.md)** — Get an OpenRouter API key (free models available)
+- **[docs/setup-serper.md](docs/setup-serper.md)** — Enable web search (optional)
+
+### Project docs
 - **[AGENTS.md](AGENTS.md)** — Detailed documentation for AI agents (architecture, module structure, code style)
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute (setup, code style, testing, PR requirements)
 - **[SECURITY.md](SECURITY.md)** — How to report security vulnerabilities
