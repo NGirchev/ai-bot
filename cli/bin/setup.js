@@ -305,9 +305,9 @@ async function main() {
   const services = await checkbox({
     message: 'Which optional services to start?',
     choices: [
-      { name: 'Monitoring — Prometheus + Grafana (recommended)', value: 'monitoring', checked: prevProfiles.includes('monitoring') || !isUpdate },
+      { name: 'Storage — MinIO for image/file uploads', value: 'storage', checked: prevProfiles.includes('storage') || !isUpdate },
+      { name: 'Monitoring — Prometheus + Grafana', value: 'monitoring', checked: prevProfiles.includes('monitoring') },
       { name: 'Logging — Elasticsearch + Kibana (~2 GB RAM)', value: 'logging', checked: prevProfiles.includes('logging') },
-      { name: 'Storage — MinIO for image/file uploads', value: 'storage', checked: prevProfiles.includes('storage') },
     ],
   });
 
