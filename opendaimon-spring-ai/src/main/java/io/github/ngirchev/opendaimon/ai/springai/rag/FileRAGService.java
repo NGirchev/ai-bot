@@ -72,9 +72,12 @@ public class FileRAGService {
                 .similarityThreshold(ragProperties.getSimilarityThreshold())
                 .build();
         
+        log.debug("RAG: Performing semantic search in VectorStore (topK={}, threshold={})", 
+                ragProperties.getTopK(), ragProperties.getSimilarityThreshold());
+        
         List<Document> results = vectorStore.similaritySearch(searchRequest);
         
-        log.info("Found {} relevant chunks across all documents", results.size());
+        log.debug("RAG: Semantic search found {} relevant chunks", results.size());
         
         return results;
     }

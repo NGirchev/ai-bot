@@ -425,6 +425,6 @@ On `ApplicationReadyEvent`:
 1. `TelegramUsersStartupInitializer` — creates/updates DB records for all IDs in `access.admin/vip/regular`; fetches real names from Telegram `GetChat` if bot available
 2. `TelegramBotRegistrar` — registers bot with Telegram, calls `TelegramBotMenuService.setupBotMenu()` for ru and en
 
-The control that opens the bot command list in the Telegram client is labeled by **Telegram app language** (e.g. "Menu" vs "Меню"), not by the bot’s `/language` setting. `setMyCommands` only defines the command list text per locale.
+The control that opens the bot command list in the Telegram client is labeled by **Telegram app language** (for example, different localized labels), not by the bot’s `/language` setting. `setMyCommands` only defines the command list text per locale.
 
 Session cleanup: `TelegramUserActivityService` runs every 10 minutes, closes sessions inactive > 15 minutes.

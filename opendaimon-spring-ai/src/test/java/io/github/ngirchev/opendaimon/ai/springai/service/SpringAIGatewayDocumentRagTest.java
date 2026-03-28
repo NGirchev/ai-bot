@@ -17,8 +17,10 @@ import io.github.ngirchev.opendaimon.ai.springai.rag.FileRAGService;
 import io.github.ngirchev.opendaimon.ai.springai.retry.SpringAIModelRegistry;
 import io.github.ngirchev.opendaimon.common.ai.ModelCapabilities;
 import io.github.ngirchev.opendaimon.common.ai.command.ChatAICommand;
+import io.github.ngirchev.opendaimon.common.ai.command.FixedModelChatAICommand;
 import io.github.ngirchev.opendaimon.common.ai.response.SpringAIStreamResponse;
 import io.github.ngirchev.opendaimon.common.exception.DocumentContentNotExtractableException;
+import io.github.ngirchev.opendaimon.common.exception.UnsupportedModelCapabilityException;
 import io.github.ngirchev.opendaimon.common.model.Attachment;
 import io.github.ngirchev.opendaimon.common.model.AttachmentType;
 import io.github.ngirchev.opendaimon.common.service.AIGatewayRegistry;
@@ -76,7 +78,7 @@ class SpringAIGatewayDocumentRagTest {
 
         SpringAIModelConfig modelConfig = new SpringAIModelConfig();
         modelConfig.setName("test-model");
-        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT));
+        modelConfig.setCapabilities(Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION));
         modelConfig.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
         when(springAIModelRegistry.getCandidatesByCapabilities(any(), any(), any())).thenReturn(List.of(modelConfig));
 
@@ -160,7 +162,7 @@ class SpringAIGatewayDocumentRagTest {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("someKey", "value");
         ChatAICommand command = new ChatAICommand(
-                Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION),
+                Set.of(ModelCapabilities.CHAT),
                 Set.of(),
                 0.35,
                 1000,
@@ -174,6 +176,12 @@ class SpringAIGatewayDocumentRagTest {
         );
 
         springAIGateway.generateResponse(command);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<ModelCapabilities>> requiredCapsCaptor = ArgumentCaptor.forClass(Set.class);
+        verify(springAIModelRegistry, atLeastOnce()).getCandidatesByCapabilities(requiredCapsCaptor.capture(), isNull(), any());
+        assertTrue(requiredCapsCaptor.getValue().contains(ModelCapabilities.VISION),
+                "Gateway should require VISION when final user message contains rendered PDF page images");
 
         verify(documentProcessingService, times(1)).processPdf(any(byte[].class), eq("scan.pdf"));
         
@@ -201,6 +209,46 @@ class SpringAIGatewayDocumentRagTest {
         assertTrue(hasSystemMessageWithPdfContext, "Should have SystemMessage with PDF attachment context");
 
         // In this test ChatMemory is not used because there is no threadKey in metadata
+    }
+
+    @Test
+    void whenFixedModelAndPdfFallbackAddsImages_thenModelWithoutVisionFails() {
+        byte[] pdfData = new byte[]{'%', 'P', 'D', 'F', '-', '1', '.', '4', 0, 0};
+        Attachment pdfAttachment = new Attachment(
+                "doc/scan.pdf",
+                "application/pdf",
+                "scan.pdf",
+                pdfData.length,
+                AttachmentType.PDF,
+                pdfData
+        );
+
+        when(documentProcessingService.processPdf(any(byte[].class), anyString()))
+                .thenThrow(new DocumentContentNotExtractableException("No text in PDF"));
+
+        SpringAIModelConfig fixedModelWithoutVision = new SpringAIModelConfig();
+        fixedModelWithoutVision.setName("fixed-chat-only");
+        fixedModelWithoutVision.setCapabilities(Set.of(ModelCapabilities.CHAT));
+        fixedModelWithoutVision.setProviderType(SpringAIModelConfig.ProviderType.OPENAI);
+        when(springAIModelRegistry.getByModelName("fixed-chat-only"))
+                .thenReturn(java.util.Optional.of(fixedModelWithoutVision));
+
+        FixedModelChatAICommand command = new FixedModelChatAICommand(
+                "fixed-chat-only",
+                Set.of(),
+                0.35,
+                1000,
+                null,
+                null,
+                "What is in the file?",
+                true,
+                Map.of(),
+                Map.of(),
+                List.of(pdfAttachment)
+        );
+
+        assertThrows(UnsupportedModelCapabilityException.class, () -> springAIGateway.generateResponse(command));
+        verify(chatService, never()).streamChat(any(), any(), any(), any());
     }
 
     @Test

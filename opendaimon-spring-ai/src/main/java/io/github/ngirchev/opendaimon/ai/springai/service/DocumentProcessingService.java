@@ -145,6 +145,53 @@ public class DocumentProcessingService {
         return documentId;
     }
 
+    /**
+     * Processes pre-extracted text (e.g. from vision model) and stores chunks in VectorStore.
+     *
+     * <p>Used when PDF has no text layer: vision model extracts text from page images,
+     * and this method indexes that text for RAG, just like a normal text-based PDF.
+     *
+     * @param extractedText text extracted by vision model
+     * @param originalName  original file name (for metadata)
+     * @return documentId for later search
+     */
+    public String processExtractedText(String extractedText, String originalName) {
+        String documentId = UUID.randomUUID().toString();
+
+        log.info("Processing vision-extracted text for '{}' with documentId={} (length={})",
+                originalName, documentId, extractedText.length());
+
+        Document document = new Document(extractedText);
+
+        TokenTextSplitter splitter = new TokenTextSplitter(
+                ragProperties.getChunkSize(),
+                ragProperties.getChunkOverlap(),
+                5,     // minChunkSizeChars
+                10000, // maxNumChunks
+                true   // keepSeparator
+        );
+        List<Document> chunks = splitter.split(List.of(document));
+        log.debug("Split vision-extracted text into {} chunks", chunks.size());
+
+        if (chunks.isEmpty()) {
+            log.warn("Vision-extracted text for '{}' produced no chunks after splitting", originalName);
+            return null;
+        }
+
+        chunks.forEach(doc -> {
+            doc.getMetadata().put("documentId", documentId);
+            doc.getMetadata().put("originalName", originalName);
+            doc.getMetadata().put("type", "pdf-vision");
+        });
+
+        vectorStore.add(chunks);
+
+        log.info("Processed vision-extracted text for '{}': {} chunks saved with documentId={}",
+                originalName, chunks.size(), documentId);
+
+        return documentId;
+    }
+
     private static final int EXTRACTED_TEXT_SAMPLE_MAX_LEN = 300;
 
     /**
