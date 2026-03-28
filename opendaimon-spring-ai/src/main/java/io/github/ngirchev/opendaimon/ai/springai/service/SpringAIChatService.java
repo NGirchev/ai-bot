@@ -175,6 +175,36 @@ public class SpringAIChatService {
         }
     }
 
+    /**
+     * Lightweight vision call for internal use (e.g. extracting text from image-only PDF).
+     * No ChatMemory, no web tools, no conversationId — pure vision request.
+     *
+     * @param modelConfig vision-capable model
+     * @param messages    messages (typically: UserMessage with text + Media)
+     * @return extracted text from the model response
+     */
+    public String callSimpleVision(SpringAIModelConfig modelConfig, List<Message> messages) {
+        String modelName = modelConfig.getName();
+        log.info("Vision extraction call. model={}, messages={}", modelName, messages.size());
+
+        var promptBuilder = promptFactory.preparePrompt(
+                modelConfig, modelName, null, null, false, messages, null);
+
+        try {
+            ChatResponse response = promptBuilder.call().chatResponse();
+            String text = response != null && response.getResult() != null
+                    && response.getResult().getOutput() != null
+                    ? response.getResult().getOutput().getText()
+                    : null;
+            log.info("Vision extraction completed. model={}, responseLength={}",
+                    modelName, text != null ? text.length() : 0);
+            return text;
+        } catch (Exception e) {
+            log.error("Vision extraction failed. model={}, error={}", modelName, e.getMessage(), e);
+            throw new RuntimeException("Vision extraction failed for model " + modelName, e);
+        }
+    }
+
     public AIResponse callChatFromBody(
             SpringAIModelConfig modelConfig,
             Map<String, Object> requestBody,

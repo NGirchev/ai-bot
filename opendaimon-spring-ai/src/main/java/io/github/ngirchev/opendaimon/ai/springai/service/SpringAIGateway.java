@@ -133,6 +133,7 @@ public class SpringAIGateway implements AIGateway {
 
     private AIResponse executeChatWithOptions(OpenDaimonChatOptions chatOptions, AICommand command, List<Message> messages) {
         UserPriority userPriority = resolveUserPriority(command);
+        boolean requiresVisionForPayload = hasUserMedia(messages);
 
         SpringAIModelConfig modelConfig;
 
@@ -144,24 +145,26 @@ public class SpringAIGateway implements AIGateway {
             // Second-line guard: validate live registry capabilities at execution time
             Set<ModelCapabilities> liveCapabilities = modelConfig.getCapabilities() != null
                     ? modelConfig.getCapabilities() : Set.of();
-            Set<ModelCapabilities> requiredCapabilities = command.modelCapabilities().stream()
+            Set<ModelCapabilities> requiredCapabilities = new HashSet<>(command.modelCapabilities().stream()
                     .filter(c -> c != ModelCapabilities.AUTO)
-                    .collect(java.util.stream.Collectors.toSet());
+                    .collect(java.util.stream.Collectors.toSet()));
+            if (requiresVisionForPayload) {
+                requiredCapabilities.add(ModelCapabilities.VISION);
+            }
             if (!requiredCapabilities.isEmpty() && !liveCapabilities.containsAll(requiredCapabilities)) {
                 Set<ModelCapabilities> missing = requiredCapabilities.stream()
                         .filter(c -> !liveCapabilities.contains(c))
                         .collect(java.util.stream.Collectors.toSet());
                 throw new UnsupportedModelCapabilityException(fixed.fixedModelId(), missing);
             }
-            // Explicit VISION guard (catches cases where modelDescriptionCache was unavailable at command creation)
-            if (fixed.hasImageAttachments() && !liveCapabilities.contains(ModelCapabilities.VISION)) {
-                throw new UnsupportedModelCapabilityException(
-                        fixed.fixedModelId(), Set.of(ModelCapabilities.VISION));
-            }
         } else {
             // AUTO mode — use capability-based selection
+            Set<ModelCapabilities> requiredForSelection = new HashSet<>(command.modelCapabilities());
+            if (requiresVisionForPayload) {
+                requiredForSelection.add(ModelCapabilities.VISION);
+            }
             List<SpringAIModelConfig> candidates = springAIModelRegistry
-                    .getCandidatesByCapabilities(command.modelCapabilities(), null, userPriority);
+                    .getCandidatesByCapabilities(requiredForSelection, null, userPriority);
             // Prefer models that also cover optional capabilities (stable sort — preserves priority order within same score)
             Set<ModelCapabilities> optional = command.optionalCapabilities();
             if (!optional.isEmpty() && !candidates.isEmpty()) {
@@ -172,9 +175,23 @@ public class SpringAIGateway implements AIGateway {
             }
             modelConfig = candidates.isEmpty() ? null : candidates.getFirst();
             if (modelConfig == null) {
-                throw new RuntimeException("No model found for capabilities: " + command.modelCapabilities());
+                throw new RuntimeException("No model found for capabilities: " + requiredForSelection);
+            }
+            Set<ModelCapabilities> liveCapabilities = modelConfig.getCapabilities() != null
+                    ? modelConfig.getCapabilities() : Set.of();
+            Set<ModelCapabilities> effectiveRequired = requiredForSelection.stream()
+                    .filter(c -> c != ModelCapabilities.AUTO)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!effectiveRequired.isEmpty() && !liveCapabilities.containsAll(effectiveRequired)) {
+                Set<ModelCapabilities> missing = effectiveRequired.stream()
+                        .filter(c -> !liveCapabilities.contains(c))
+                        .collect(java.util.stream.Collectors.toSet());
+                throw new UnsupportedModelCapabilityException(modelConfig.getName(), missing);
             }
         }
+
+        log.info("Selected model='{}', provider={}, caps={}",
+                modelConfig.getName(), modelConfig.getProviderType(), modelConfig.getCapabilities());
 
         if (modelConfig.getProviderType() == null) {
             throw new IllegalStateException(
@@ -489,8 +506,18 @@ public class SpringAIGateway implements AIGateway {
         }
 
         if (documentAttachments.isEmpty()) {
-            log.debug("processRagIfEnabled: skipped, no document attachments");
+            // RAG context from previous file processing is already in chat history
+            // (augmented prompt was saved as part of the message). No need to re-embed.
+            log.debug("RAG: No attachments, skipping embedding — context available from chat history");
             return userQuery;
+        }
+
+        log.debug("RAG: Processing new document attachments, chunking and indexing to VectorStore");
+
+        // Defensive fallback: if query is blank but documents are present, use a default summarization prompt
+        if (userQuery == null || userQuery.isBlank()) {
+            userQuery = "Summarize this document and provide key points.";
+            log.info("processRagIfEnabled: empty user query with attachments, using default summarization prompt");
         }
 
         log.info("processRagIfEnabled: totalAttachments={}, documentAttachments={}", totalAttachments, documentAttachments.size());
@@ -544,6 +571,18 @@ public class SpringAIGateway implements AIGateway {
                 attachments.addAll(imageAttachments);
                 pdfAsImageFilenames.add(documentAttachment.filename());
                 log.info("Added {} image attachment(s) from PDF '{}' for vision model", imageAttachments.size(), documentAttachment.filename());
+
+                // Vision cache: extract text via vision model and store in VectorStore for follow-up queries
+                String extractedText = extractTextFromImagesViaVision(imageAttachments, documentAttachment.filename());
+                if (extractedText != null) {
+                    String visionDocId = documentProcessingService.processExtractedText(extractedText, documentAttachment.filename());
+                    if (visionDocId != null) {
+                        List<Document> relevantChunks = fileRagService.findRelevantContext(userQuery, visionDocId);
+                        allRelevantChunks.addAll(relevantChunks);
+                        log.info("Vision cache: stored extracted text for '{}', documentId={}, relevantChunks={}",
+                                documentAttachment.filename(), visionDocId, relevantChunks.size());
+                    }
+                }
                 return;
             }
         } else {
@@ -787,6 +826,52 @@ public class SpringAIGateway implements AIGateway {
         }
     }
 
+    /**
+     * Extracts text content from PDF page images via a vision-capable model.
+     *
+     * <p>Selects a VISION+CHAT model from registry, sends images with extraction prompt,
+     * returns the model's text response containing extracted document content.
+     *
+     * @param imageAttachments rendered PDF page images
+     * @param filename         original PDF filename (for logging)
+     * @return extracted text or null if extraction failed or no vision model available
+     */
+    private String extractTextFromImagesViaVision(List<Attachment> imageAttachments, String filename) {
+        // Find a vision-capable model
+        List<SpringAIModelConfig> visionCandidates = springAIModelRegistry
+                .getCandidatesByCapabilities(Set.of(ModelCapabilities.CHAT, ModelCapabilities.VISION), null);
+        if (visionCandidates.isEmpty()) {
+            log.warn("No VISION-capable model available for text extraction from '{}'", filename);
+            return null;
+        }
+        SpringAIModelConfig visionModel = visionCandidates.getFirst();
+        log.info("Using vision model '{}' for text extraction from '{}'", visionModel.getName(), filename);
+
+        String extractionPrompt = ragProperties.getPrompts().getVisionExtractionPrompt();
+
+        List<Media> mediaList = imageAttachments.stream()
+                .map(this::toMedia)
+                .toList();
+
+        UserMessage userMessage = UserMessage.builder()
+                .text(extractionPrompt)
+                .media(mediaList)
+                .build();
+
+        try {
+            String extractedText = chatService.callSimpleVision(visionModel, List.of(userMessage));
+            if (extractedText != null && !extractedText.isBlank()) {
+                log.info("Vision extraction succeeded for '{}': {} chars", filename, extractedText.length());
+                return extractedText;
+            }
+            log.warn("Vision extraction returned empty text for '{}'", filename);
+            return null;
+        } catch (Exception e) {
+            log.error("Vision extraction failed for '{}': {}", filename, e.getMessage());
+            return null;
+        }
+    }
+
     private static int countMatchingCaps(Set<ModelCapabilities> modelCaps, Set<ModelCapabilities> optional) {
         if (modelCaps == null || optional == null) return 0;
         int count = 0;
@@ -794,6 +879,16 @@ public class SpringAIGateway implements AIGateway {
             if (modelCaps.contains(cap)) count++;
         }
         return count;
+    }
+
+    private static boolean hasUserMedia(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return false;
+        }
+        return messages.stream()
+                .filter(UserMessage.class::isInstance)
+                .map(UserMessage.class::cast)
+                .anyMatch(message -> message.getMedia() != null && !message.getMedia().isEmpty());
     }
 
 }

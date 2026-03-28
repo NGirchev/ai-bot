@@ -8,7 +8,6 @@ import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import io.github.ngirchev.opendaimon.common.config.CoreCommonProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -142,19 +141,15 @@ public class SpringAIAutoConfig {
 
     @Bean
     public SpringAIPromptFactory springAIPromptFactory(
-            @Qualifier("ollamaChatClient") ChatClient ollamaChatClient,
-            @Qualifier("openAiChatClient") ChatClient openAiChatClient,
+            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
+            ObjectProvider<OpenAiChatModel> openAiChatModelProvider,
             WebTools webTools,
             ChatMemory chatMemory,
             SpringAIModelType springAIModelType
     ) {
-        return new SpringAIPromptFactory(
-                ollamaChatClient,
-                openAiChatClient,
-                webTools,
-                chatMemory,
-                springAIModelType
-        );
+        // Providers are stored and resolved lazily on first request — ordering relative to
+        // OllamaChatAutoConfiguration / OpenAiChatAutoConfiguration does not matter.
+        return new SpringAIPromptFactory(ollamaChatModelProvider, openAiChatModelProvider, webTools, chatMemory, springAIModelType);
     }
 
     @Bean
@@ -266,12 +261,11 @@ public class SpringAIAutoConfig {
     }
 
     /**
-     * Custom {@link ToolCallingManager} that includes {@link UnknownToolFallbackResolver} as the last
-     * resolver in the chain. This handles tool calls from models that invoke built-in provider-side tools
-     * not registered in Spring AI (e.g. Gemini Code Execution {@code run}).
-     * <p>
-     * Declared before {@code ToolCallingAutoConfiguration} (via {@code @AutoConfigureBefore})
-     * so that {@code @ConditionalOnMissingBean} in that autoconfig skips creating a default bean.
+     * Custom {@link ToolCallingManager} that appends {@link UnknownToolFallbackResolver}
+     * as the last resolver, silently ignoring tool calls from models that invoke
+     * built-in provider-side tools not registered in Spring AI (e.g. Gemini {@code run}).
+     * Declared via {@code @AutoConfigureBefore(ToolCallingAutoConfiguration)} so
+     * {@code @ConditionalOnMissingBean} in that autoconfig skips creating a default bean.
      */
     @Bean
     @ConditionalOnMissingBean(ToolCallingManager.class)
@@ -365,16 +359,6 @@ public class SpringAIAutoConfig {
                 coreCommonProperties.getSummarization().getMessageWindowSize(),
                 coreCommonProperties.getSummarization().getMaxWindowTokens()
         );
-    }
-
-    @Bean("ollamaChatClient")
-    public ChatClient ollamaChatClientWithHistory(OllamaChatModel ollamaChatModel) {
-        return ChatClient.builder(ollamaChatModel).build();
-    }
-
-    @Bean("openAiChatClient")
-    public ChatClient openAiChatClientWithHistory(OpenAiChatModel openAiChatModel) {
-        return ChatClient.builder(openAiChatModel).build();
     }
 
     @Bean

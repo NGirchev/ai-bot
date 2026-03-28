@@ -310,6 +310,12 @@ open-daimon:
             %s
 
             Question: %s
+          # Prompt for extracting text from image-only PDF pages via vision model.
+          vision-extraction-prompt: |
+            Extract ALL text content from these PDF page images exactly as written.
+            Include all headings, paragraphs, tables, lists, captions, and any visible text.
+            Preserve the original structure and formatting as much as possible.
+            Output only the extracted text, no commentary.
     gateway-mock:
       enabled: false  # Disabled by default
 

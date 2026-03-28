@@ -18,6 +18,11 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.messageorigin.MessageOrigin;
+import org.telegram.telegrambots.meta.api.objects.messageorigin.MessageOriginChannel;
+import org.telegram.telegrambots.meta.api.objects.messageorigin.MessageOriginChat;
+import org.telegram.telegrambots.meta.api.objects.messageorigin.MessageOriginHiddenUser;
+import org.telegram.telegrambots.meta.api.objects.messageorigin.MessageOriginUser;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeChat;
 import org.telegram.telegrambots.meta.api.objects.inlinequery.InlineQuery;
@@ -120,8 +125,30 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.info("Document message received, routing to mapToTelegramDocumentCommand");
             return mapToTelegramDocumentCommand(update);
         }
+        if (update.hasMessage() && (update.getMessage().hasPhoto() || update.getMessage().hasDocument())) {
+            sendFileUploadDisabledReply(update);
+        }
         log.warn("Unsupported message {}", update);
         return null;
+    }
+
+    private void sendFileUploadDisabledReply(Update update) {
+        try {
+            Long chatId = update.getMessage().getChatId();
+            Integer messageId = update.getMessage().getMessageId();
+            String langCode = null;
+            try {
+                TelegramUser user = userService.getOrCreateUser(update.getMessage().getFrom());
+                langCode = user.getLanguageCode();
+            } catch (Exception ignored) {
+            }
+            String msg = messageLocalizationService != null
+                    ? messageLocalizationService.getMessage("telegram.error.file.upload.disabled", langCode)
+                    : "File uploads are not supported.";
+            sendErrorMessage(chatId, msg, messageId);
+        } catch (TelegramApiException e) {
+            log.error("Error sending file upload disabled reply", e);
+        }
     }
 
     private void sendErrorReplyIfPossible(Update update, TelegramCommand command) {
@@ -196,11 +223,16 @@ public class TelegramBot extends TelegramLongPollingBot {
         TelegramUser telegramUser = userService.getOrCreateUser(message.getFrom());
         Long userId = telegramUser.getId();
 
+        String forwardInfo = extractForwardInfo(message);
         String userText;
         String stripped = message.getText().strip();
         TelegramCommandType telegramCommandType;
 
-        if (stripped.startsWith("/")) {
+        if (forwardInfo != null) {
+            // Forwarded messages are always treated as regular messages, not as commands
+            telegramCommandType = new TelegramCommandType(TelegramCommand.MESSAGE);
+            userText = enrichWithForwardContext(stripped, forwardInfo, telegramUser.getLanguageCode());
+        } else if (stripped.startsWith("/")) {
             clearStatus(telegramUser.getTelegramId());
             int spaceIndex = stripped.indexOf(' ');
             String commandText = stripped.substring(0, spaceIndex == -1 ? stripped.length() : spaceIndex);
@@ -220,6 +252,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             userText = stripped;
         }
         TelegramCommand cmd = new TelegramCommand(userId, message.getChatId(), telegramCommandType, update, userText, true);
+        cmd.forwardedFrom(forwardInfo);
         return cmd.languageCode(telegramUser.getLanguageCode());
     }
 
@@ -231,12 +264,14 @@ public class TelegramBot extends TelegramLongPollingBot {
         TelegramUser telegramUser = userService.getOrCreateUser(message.getFrom());
         Long userId = telegramUser.getId();
 
+        String forwardInfo = extractForwardInfo(message);
         String caption = message.getCaption();
-        String userText = caption != null && !caption.isBlank()
+        String baseText = caption != null && !caption.isBlank()
                 ? caption
                 : messageLocalizationService != null
                         ? messageLocalizationService.getMessage("telegram.photo.default.prompt", telegramUser.getLanguageCode())
                         : "What is this?";
+        String userText = enrichWithForwardContext(baseText, forwardInfo, telegramUser.getLanguageCode());
         TelegramCommandType telegramCommandType = new TelegramCommandType(TelegramCommand.MESSAGE);
 
         List<Attachment> attachments = new ArrayList<>();
@@ -257,6 +292,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         TelegramCommand cmd = new TelegramCommand(userId, message.getChatId(), telegramCommandType, update, userText, true, attachments);
+        cmd.forwardedFrom(forwardInfo);
         return cmd.languageCode(telegramUser.getLanguageCode());
     }
 
@@ -268,7 +304,14 @@ public class TelegramBot extends TelegramLongPollingBot {
         TelegramUser telegramUser = userService.getOrCreateUser(message.getFrom());
         Long userId = telegramUser.getId();
 
-        String userText = message.getCaption() != null ? message.getCaption() : "";
+        String forwardInfo = extractForwardInfo(message);
+        String caption = message.getCaption();
+        String baseText = caption != null && !caption.isBlank()
+                ? caption
+                : messageLocalizationService != null
+                        ? messageLocalizationService.getMessage("telegram.document.default.prompt", telegramUser.getLanguageCode())
+                        : "Analyze this document and provide a brief summary.";
+        String userText = enrichWithForwardContext(baseText, forwardInfo, telegramUser.getLanguageCode());
         TelegramCommandType telegramCommandType = new TelegramCommandType(TelegramCommand.MESSAGE);
 
         List<Attachment> attachments = new ArrayList<>();
@@ -303,6 +346,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         log.info("Document command created: attachmentsCount={}, userText='{}', firstAttachmentType={}, dataLength={}",
                 attachments.size(), userText, first != null ? first.type() : null, first != null && first.data() != null ? first.data().length : 0);
         TelegramCommand cmd = new TelegramCommand(userId, message.getChatId(), telegramCommandType, update, userText, true, attachments);
+        cmd.forwardedFrom(forwardInfo);
         return cmd.languageCode(telegramUser.getLanguageCode());
     }
 
@@ -475,6 +519,62 @@ public class TelegramBot extends TelegramLongPollingBot {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /**
+     * Extracts a human-readable source description from a forwarded message's origin.
+     * Returns null if the message is not forwarded.
+     */
+    String extractForwardInfo(Message message) {
+        MessageOrigin origin = message.getForwardOrigin();
+        if (origin == null) {
+            return null;
+        }
+        if (origin instanceof MessageOriginUser userOrigin) {
+            org.telegram.telegrambots.meta.api.objects.User sender = userOrigin.getSenderUser();
+            StringBuilder name = new StringBuilder(sender.getFirstName());
+            if (sender.getLastName() != null) {
+                name.append(" ").append(sender.getLastName());
+            }
+            if (sender.getUserName() != null) {
+                name.append(" (@").append(sender.getUserName()).append(")");
+            }
+            return name.toString();
+        }
+        if (origin instanceof MessageOriginChannel channelOrigin) {
+            org.telegram.telegrambots.meta.api.objects.Chat chat = channelOrigin.getChat();
+            String title = chat.getTitle();
+            String signature = channelOrigin.getAuthorSignature();
+            if (title != null && signature != null) {
+                return title + " (" + signature + ")";
+            }
+            return title != null ? title : "channel";
+        }
+        if (origin instanceof MessageOriginHiddenUser hiddenOrigin) {
+            String senderName = hiddenOrigin.getSenderUserName();
+            return senderName != null ? senderName : "hidden user";
+        }
+        if (origin instanceof MessageOriginChat chatOrigin) {
+            org.telegram.telegrambots.meta.api.objects.Chat chat = chatOrigin.getSenderChat();
+            return chat.getTitle() != null ? chat.getTitle() : "chat";
+        }
+        return null;
+    }
+
+    /**
+     * Prepends forwarding context to user text if the message is forwarded.
+     */
+    String enrichWithForwardContext(String userText, String forwardInfo, String languageCode) {
+        if (forwardInfo == null) {
+            return userText;
+        }
+        String prefix;
+        if (messageLocalizationService != null) {
+            prefix = messageLocalizationService.getMessage("telegram.forward.prefix", languageCode, forwardInfo);
+        } else {
+            prefix = "[Forwarded from " + forwardInfo + "]";
+        }
+        return userText != null ? prefix + "\n" + userText : prefix;
     }
 
     public void clearStatus(Long chatId) {

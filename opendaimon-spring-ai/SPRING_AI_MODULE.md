@@ -213,9 +213,10 @@ Intercepts `callChat()` and `streamChat()`. Retries across candidates on retryab
 ---
 
 ### UC-8: Telegram — scanned PDF (no text), RAG enabled
-**Input:** scanned PDF, RAG enabled, model supports VISION
+**Input:** scanned PDF, RAG enabled
 **Gateway:** `processRagIfEnabled()` → `PagePdfDocumentReader` → `DocumentContentNotExtractableException`
 → `renderPdfToImageAttachments()` — renders up to 10 pages as JPEG → added as IMAGE attachments
+→ final payload contains media, so model selection requires `VISION` capability
 → `UserMessage` built with image media (PDF pages)
 **Output:** model reads pages visually
 
@@ -327,5 +328,5 @@ REST stream handler emits `ServerSentEvent` per character.
 | `STRUCTURED_OUTPUT` | JSON by schema |
 | `TOOL_CALLING` | Function calling |
 | `WEB` | Web search + fetch URL via `WebTools` |
-| `VISION` | Image input. Selector hint only — does not require images to be present. |
+| `VISION` | Image input. Required when final payload contains media (including PDF pages rendered as images). |
 | `FREE` | Free-tier model (OpenRouter free) |
